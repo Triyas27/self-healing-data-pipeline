@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pydantic
+pydantic-settings
+groq
+alembic
+python-multipart
+httpx
+
+pytest
+pytest-asyncio
+pytest-cov
