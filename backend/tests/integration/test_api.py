@@ -1,0 +1,166 @@
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from app.db.base import Base
+from app.db.session import get_db
+from app.main import app
+from app.models import CustomerReference
+from app.synthetic.generator import known_customer_ids
+
+
+@pytest.fixture()
+def client():
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    TestingSessionLocal = sessionmaker(bind=engine)
+
+    seed_db = TestingSessionLocal()
+    for cid in known_customer_ids():
+        seed_db.add(CustomerReference(customer_id=cid))
+    seed_db.commit()
+    seed_db.close()
+
+    def override_get_db():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+    yield TestClient(app)
+    app.dependency_overrides.clear()
+
+
+def test_health_check(client):
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}
+
+
+def test_trigger_run_with_synthetic_data(client):
+    resp = client.post(
+        "/runs/trigger", params={"row_count": 20, "failure_rate": 0.0, "seed": 1, "use_llm": False}
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["row_count"] == 20
+    assert data["status"] == "completed"
+    assert data["clean_first_pass"] == 20
+
+
+def test_trigger_run_with_isolated_failure_mode(client):
+    resp = client.post(
+        "/runs/trigger",
+        params={
+            "row_count": 10,
+            "failure_rate": 1.0,
+            "failure_mode": "invalid_foreign_key",
+            "seed": 1,
+            "use_llm": False,
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "completed"
+    assert data["quarantined"] == 10
+    assert data["healed"] == 0
+
+
+def test_trigger_run_with_csv_upload(client):
+    csv_text = (
+        "order_id,customer_id,order_date,amount,currency,status\n"
+        "ORD-000001,CUST-0001,2026-01-01,49.99,USD,pending\n"
+    )
+    files = {"file": ("batch.csv", csv_text, "text/csv")}
+    resp = client.post("/runs/trigger", files=files, params={"use_llm": False})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["row_count"] == 1
+    assert data["clean_first_pass"] == 1
+
+
+def test_list_and_get_run(client):
+    trigger_resp = client.post(
+        "/runs/trigger", params={"row_count": 5, "failure_rate": 0.0, "seed": 1, "use_llm": False}
+    )
+    run_id = trigger_resp.json()["id"]
+
+    list_resp = client.get("/runs")
+    assert list_resp.status_code == 200
+    assert any(r["id"] == run_id for r in list_resp.json())
+
+    get_resp = client.get(f"/runs/{run_id}")
+    assert get_resp.status_code == 200
+    assert get_resp.json()["id"] == run_id
+
+
+def test_get_missing_run_404(client):
+    resp = client.get("/runs/999999")
+    assert resp.status_code == 404
+
+
+def test_quarantine_list_and_resolve_flow(client):
+    trigger_resp = client.post(
+        "/runs/trigger",
+        params={
+            "row_count": 5,
+            "failure_rate": 1.0,
+            "failure_mode": "invalid_foreign_key",
+            "seed": 1,
+            "use_llm": False,
+        },
+    )
+    run_id = trigger_resp.json()["id"]
+
+    list_resp = client.get("/quarantine", params={"run_id": run_id})
+    assert list_resp.status_code == 200
+    rows = list_resp.json()
+    assert len(rows) == 5
+    assert all(r["resolved"] is False for r in rows)
+
+    quarantine_id = rows[0]["id"]
+    get_resp = client.get(f"/quarantine/{quarantine_id}")
+    assert get_resp.status_code == 200
+    assert get_resp.json()["error_type"] == "invalid_foreign_key"
+
+    resolve_resp = client.post(f"/quarantine/{quarantine_id}/resolve")
+    assert resolve_resp.status_code == 200
+    assert resolve_resp.json()["resolved"] is True
+
+    unresolved_resp = client.get("/quarantine", params={"run_id": run_id, "resolved": False})
+    assert len(unresolved_resp.json()) == 4
+
+
+def test_resolve_missing_quarantine_row_404(client):
+    resp = client.post("/quarantine/999999/resolve")
+    assert resp.status_code == 404
+
+
+def test_stats_endpoint_reflects_runs(client):
+    client.post("/runs/trigger", params={"row_count": 10, "failure_rate": 0.0, "seed": 1, "use_llm": False})
+    client.post(
+        "/runs/trigger",
+        params={
+            "row_count": 5,
+            "failure_rate": 1.0,
+            "failure_mode": "invalid_foreign_key",
+            "seed": 2,
+            "use_llm": False,
+        },
+    )
+
+    resp = client.get("/stats")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_runs"] == 2
+    assert data["total_rows_processed"] == 15
+    assert data["total_quarantined"] == 5
+    assert len(data["heal_rate_over_time"]) == 2
