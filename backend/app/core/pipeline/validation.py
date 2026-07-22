@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from app.models import CustomerReference
+from app.models import CustomerReference, Order
 from app.schemas.order import ORDER_COLUMNS, OrderIn
 
 
@@ -40,6 +40,10 @@ def load_known_customer_ids(db: Session) -> set[str]:
     return {row.customer_id for row in db.query(CustomerReference).all()}
 
 
+def load_existing_order_ids(db: Session) -> set[str]:
+    return {row.order_id for row in db.query(Order.order_id).all()}
+
+
 def check_schema_drift(rows: list[dict]) -> None:
     """Rejects the whole batch if any row carries an undeclared column."""
     all_columns: set[str] = set()
@@ -55,7 +59,12 @@ def _classify_pydantic_error(errors: list[dict]) -> str:
     return f"invalid_{field_name}"
 
 
-def validate_row(index: int, row: dict, known_customer_ids: set[str]) -> RowValidationResult:
+def validate_row(
+    index: int,
+    row: dict,
+    known_customer_ids: set[str],
+    existing_order_ids: frozenset[str] = frozenset(),
+) -> RowValidationResult:
     try:
         order = OrderIn.model_validate(row)
     except ValidationError as exc:
@@ -84,13 +93,43 @@ def validate_row(index: int, row: dict, known_customer_ids: set[str]) -> RowVali
             error_type="invalid_foreign_key",
         )
 
+    if order.order_id in existing_order_ids:
+        return RowValidationResult(
+            row_index=index,
+            raw_row=row,
+            valid=False,
+            order=order,
+            errors=[
+                {
+                    "loc": ("order_id",),
+                    "msg": f"Duplicate order_id: {order.order_id}",
+                    "type": "duplicate",
+                }
+            ],
+            error_type="duplicate_order_id",
+        )
+
     return RowValidationResult(row_index=index, raw_row=row, valid=True, order=order)
 
 
-def validate_batch(rows: list[dict], known_customer_ids: set[str]) -> BatchValidationResult:
+def validate_batch(
+    rows: list[dict],
+    known_customer_ids: set[str],
+    existing_order_ids: frozenset[str] = frozenset(),
+) -> BatchValidationResult:
     """Isolates per-row failures, so one invalid row never invalidates the batch.
     Schema drift is the one batch-level gate and is checked before any row runs.
+    Also catches duplicate order_ids, both against rows already persisted from a
+    prior run and against earlier rows in this same batch.
     """
     check_schema_drift(rows)
-    results = [validate_row(i, row, known_customer_ids) for i, row in enumerate(rows)]
+
+    seen_order_ids = set(existing_order_ids)
+    results = []
+    for i, row in enumerate(rows):
+        result = validate_row(i, row, known_customer_ids, seen_order_ids)
+        if result.valid:
+            seen_order_ids.add(result.order.order_id)
+        results.append(result)
+
     return BatchValidationResult(results=results)

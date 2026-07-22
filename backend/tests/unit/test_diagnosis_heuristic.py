@@ -69,7 +69,48 @@ def test_no_fix_for_unresolvable_foreign_key():
     assert diagnosis.transform is None
 
 
+def test_no_fix_for_duplicate_order_id():
+    result = _invalid_result({}, "order_id", error_type="duplicate_order_id")
+    diagnosis = diagnose_heuristic(result)
+    assert diagnosis.transform is None
+
+
 def test_raises_for_already_valid_row():
     result = RowValidationResult(row_index=0, raw_row={}, valid=True)
     with pytest.raises(ValueError):
         diagnose_heuristic(result)
+
+
+def test_fixable_field_is_found_even_when_a_blank_field_sorts_first():
+    # order_id is blank (unfixable) but amount has fixable noise. The unfixable
+    # field happens to be listed first -- diagnosis must still find the fix
+    # instead of declining just because it looked at errors[0] only.
+    row = {**BASE_ROW, "order_id": "", "amount": "$49.99"}
+    result = RowValidationResult(
+        row_index=0,
+        raw_row=row,
+        valid=False,
+        errors=[
+            {"loc": ("order_id",), "msg": "invalid", "type": "value_error"},
+            {"loc": ("amount",), "msg": "invalid", "type": "value_error"},
+        ],
+        error_type="invalid_order_id",
+    )
+    diagnosis = diagnose_heuristic(result)
+    assert diagnosis.transform == TransformID.COERCE_AMOUNT
+
+
+def test_no_fix_when_all_current_errors_are_unfixable():
+    row = {**BASE_ROW, "order_id": "", "customer_id": ""}
+    result = RowValidationResult(
+        row_index=0,
+        raw_row=row,
+        valid=False,
+        errors=[
+            {"loc": ("order_id",), "msg": "invalid", "type": "value_error"},
+            {"loc": ("customer_id",), "msg": "invalid", "type": "value_error"},
+        ],
+        error_type="invalid_order_id",
+    )
+    diagnosis = diagnose_heuristic(result)
+    assert diagnosis.transform is None

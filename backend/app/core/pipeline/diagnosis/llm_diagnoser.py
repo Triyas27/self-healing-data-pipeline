@@ -31,11 +31,13 @@ def diagnose_llm(result: RowValidationResult, client: Groq | None = None) -> Dia
     if client is None and not settings.groq_api_key:
         raise LLMDiagnosisError("GROQ_API_KEY is not configured")
 
-    error_summary = result.errors[0] if result.errors else {}
+    # Send every current validation error, not just the first -- a row can fail
+    # on more than one field at once, and the first-listed error isn't
+    # necessarily the one worth fixing.
     user_prompt = (
         f"Row data: {result.raw_row}\n"
         f"Error type: {result.error_type}\n"
-        f"Validation error: {error_summary}"
+        f"Validation errors: {result.errors}"
     )
 
     try:

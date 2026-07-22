@@ -57,3 +57,26 @@ def test_each_failure_mode_isolated_and_classified(mode, expected_error_type):
     assert len(result.invalid_rows) == 5
     if expected_error_type:
         assert all(r.error_type == expected_error_type for r in result.invalid_rows)
+
+
+def test_duplicate_order_id_within_same_batch_is_quarantined():
+    row = generate_batch(row_count=1, failure_rate=0.0, seed=1).rows[0]
+    rows = [row, dict(row)]  # same order_id appears twice in one batch
+    result = validate_batch(rows, set(known_customer_ids()))
+    assert len(result.valid_rows) == 1
+    assert len(result.invalid_rows) == 1
+    assert result.invalid_rows[0].error_type == "duplicate_order_id"
+
+
+def test_duplicate_order_id_against_existing_store_is_quarantined():
+    row = generate_batch(row_count=1, failure_rate=0.0, seed=1).rows[0]
+    existing_ids = frozenset({row["order_id"]})
+    result = validate_batch([row], set(known_customer_ids()), existing_ids)
+    assert len(result.invalid_rows) == 1
+    assert result.invalid_rows[0].error_type == "duplicate_order_id"
+
+
+def test_no_duplicate_false_positive_across_distinct_order_ids():
+    rows = generate_batch(row_count=5, failure_rate=0.0, seed=1).rows
+    result = validate_batch(rows, set(known_customer_ids()))
+    assert len(result.valid_rows) == 5

@@ -1,6 +1,19 @@
 from datetime import datetime
 
-_DATE_FORMATS = ["%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y", "%Y/%m/%d"]
+_DATE_FORMATS = [
+    "%d/%m/%Y",
+    "%m/%d/%Y",
+    "%d-%m-%Y",
+    "%Y/%m/%d",
+    "%d/%m/%y",
+    "%m/%d/%y",
+    "%d.%m.%Y",
+    "%Y-%m-%dT%H:%M:%S",
+    "%B %d, %Y",
+    "%b %d, %Y",
+    "%d %B %Y",
+    "%d %b %Y",
+]
 
 
 def reformat_date(row: dict[str, str], field: str = "order_date") -> dict[str, str] | None:

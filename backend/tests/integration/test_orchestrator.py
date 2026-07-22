@@ -4,6 +4,8 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+import app.core.pipeline.orchestrator as orchestrator_module
+from app.config import settings
 from app.core.pipeline.orchestrator import run_pipeline
 from app.db.base import Base
 from app.models import AuditEntry, CustomerReference, Order, QuarantineRow, Run
@@ -103,3 +105,52 @@ def test_all_clean_batch_has_zero_healed_and_quarantined():
     assert run.healed == 0
     assert run.quarantined == 0
     assert run.avg_time_to_heal_ms is None
+
+
+def test_reuploading_the_same_batch_quarantines_the_duplicates():
+    db = _make_db()
+    clean_rows = generate_batch(row_count=5, failure_rate=0.0, seed=3).rows
+    csv_text = to_csv_string(clean_rows)
+
+    first_run = run_pipeline(db, io.StringIO(csv_text), use_llm=False)
+    assert first_run.clean_first_pass == 5
+
+    second_run = run_pipeline(db, io.StringIO(csv_text), use_llm=False)
+    assert second_run.status == "completed"
+    assert second_run.clean_first_pass == 0
+    assert second_run.quarantined == 5
+    assert second_run.error_types == {"duplicate_order_id": 5}
+
+
+def test_row_count_over_cap_marks_run_failed(monkeypatch):
+    db = _make_db()
+    monkeypatch.setattr(settings, "max_upload_rows", 3)
+    rows = generate_batch(row_count=5, failure_rate=0.0, seed=1).rows
+    csv_text = to_csv_string(rows)
+
+    with pytest.raises(ValueError, match="exceeding"):
+        run_pipeline(db, io.StringIO(csv_text), use_llm=False)
+
+    failed_run = db.query(Run).order_by(Run.id.desc()).first()
+    assert failed_run.status == "failed"
+    assert failed_run.row_count == 5
+
+
+def test_unexpected_exception_during_repair_marks_run_failed_not_stuck(monkeypatch):
+    db = _make_db()
+    rows = generate_batch(
+        row_count=3, failure_rate=1.0, failure_mode=FailureMode.INVALID_FOREIGN_KEY, seed=1
+    ).rows
+    csv_text = to_csv_string(rows)
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("simulated crash mid-repair")
+
+    monkeypatch.setattr(orchestrator_module, "repair_row", _boom)
+
+    with pytest.raises(RuntimeError, match="simulated crash"):
+        run_pipeline(db, io.StringIO(csv_text), use_llm=False)
+
+    crashed_run = db.query(Run).order_by(Run.id.desc()).first()
+    assert crashed_run.status == "failed"
+    assert crashed_run.finished_at is not None
