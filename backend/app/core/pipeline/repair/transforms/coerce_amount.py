@@ -1,8 +1,12 @@
 import re
 from decimal import Decimal, InvalidOperation
 
-_AMOUNT_NOISE_PATTERN = re.compile(r"[^\d.\-]")
-_PAREN_NEGATIVE_PATTERN = re.compile(r"^\s*\(.+\)\s*$")
+# Characters verified to be purely decorative around a currency amount: symbols
+# and thousands/space separators. Anything else left over after stripping these
+# (letters, parentheses, suffixes like "CR"/"DR") might carry real meaning --
+# e.g. accounting notation for a negative value -- so it's left alone and lets
+# Decimal parsing fail naturally instead of being silently discarded as noise.
+_DECORATIVE_CHARS = re.compile(r"[$€£¥,\s]")
 
 
 def coerce_amount(row: dict[str, str], field: str = "amount") -> dict[str, str] | None:
@@ -10,20 +14,16 @@ def coerce_amount(row: dict[str, str], field: str = "amount") -> dict[str, str] 
     if not raw_value:
         return None
 
-    if _PAREN_NEGATIVE_PATTERN.match(raw_value):
-        # Accounting notation for a negative value, e.g. "(49.99)". Stripping the
-        # parens as noise would silently flip a real negative into a positive
-        # amount, which is fabrication, not a formatting fix. Decline instead.
-        return None
-
-    cleaned = _AMOUNT_NOISE_PATTERN.sub("", raw_value)
+    cleaned = _DECORATIVE_CHARS.sub("", raw_value)
     if cleaned == raw_value:
-        return None  # nothing to strip, so don't report a no-op fix
+        return None  # nothing recognized as decorative, so don't report a no-op fix
 
     try:
-        if Decimal(cleaned) <= 0:
-            return None
+        amount = Decimal(cleaned)
     except InvalidOperation:
+        return None  # leftover non-numeric characters -- decline rather than guess
+
+    if amount <= 0:
         return None
 
     repaired = dict(row)
