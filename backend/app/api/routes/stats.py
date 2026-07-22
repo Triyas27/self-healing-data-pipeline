@@ -23,6 +23,14 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
     needed_repair = total_healed + total_quarantined
     auto_heal_rate = total_healed / needed_repair if needed_repair else 0.0
 
+    error_type_totals: dict[str, int] = {}
+    fixes_applied_totals: dict[str, int] = {}
+    for r in runs:
+        for error_type, count in r.error_types.items():
+            error_type_totals[error_type] = error_type_totals.get(error_type, 0) + count
+        for transform, count in r.fixes_applied.items():
+            fixes_applied_totals[transform] = fixes_applied_totals.get(transform, 0) + count
+
     heal_rate_over_time = [
         HealRatePoint(
             run_id=r.id,
@@ -41,4 +49,6 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
         overall_heal_rate=overall_heal_rate,
         auto_heal_rate=auto_heal_rate,
         heal_rate_over_time=heal_rate_over_time,
+        error_type_totals=error_type_totals,
+        fixes_applied_totals=fixes_applied_totals,
     )

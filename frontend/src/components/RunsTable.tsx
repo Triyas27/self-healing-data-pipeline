@@ -1,5 +1,6 @@
 import { Fragment, useState, type KeyboardEvent } from "react";
 import type { RunSummary } from "../api/types";
+import { formatHealTime, humanizeLabel } from "../utils/labels";
 
 interface RunsTableProps {
   runs: RunSummary[];
@@ -14,7 +15,7 @@ function ChipList({ counts, emptyLabel }: { counts: Record<string, number>; empt
     <div className="chip-list">
       {entries.map(([label, count]) => (
         <span className="chip" key={label}>
-          {label} <span className="count">&times;{count}</span>
+          {humanizeLabel(label)} <span className="count">&times;{count}</span>
         </span>
       ))}
     </div>
@@ -90,7 +91,7 @@ export default function RunsTable({ runs }: RunsTableProps) {
                     </div>
                     {run.avg_time_to_heal_ms !== null && (
                       <div className="muted" style={{ marginTop: 12 }}>
-                        Avg time to heal: {run.avg_time_to_heal_ms.toFixed(1)} ms/row
+                        Avg time to heal: {formatHealTime(run.avg_time_to_heal_ms)}
                       </div>
                     )}
                   </div>

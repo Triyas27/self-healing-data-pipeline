@@ -14,7 +14,7 @@ const RUN: RunSummary = {
   quarantined: 3,
   error_types: { invalid_amount: 2, invalid_foreign_key: 1 },
   fixes_applied: { coerce_amount: 2 },
-  avg_time_to_heal_ms: 84.3,
+  avg_time_to_heal_ms: 0.42,
   status: "completed",
 };
 
@@ -25,20 +25,20 @@ function renderTable(runs: RunSummary[] = [RUN]) {
 describe("RunsTable error/fix breakdown", () => {
   it("hides the breakdown until the row is expanded", () => {
     renderTable();
-    expect(screen.queryByText("invalid_amount")).not.toBeInTheDocument();
+    expect(screen.queryByText("Invalid amount")).not.toBeInTheDocument();
   });
 
-  it("shows error type and fix chips on expand", async () => {
+  it("shows humanized error type and fix chips on expand", async () => {
     const user = userEvent.setup();
     renderTable();
     const row = screen.getByRole("button", { name: /12/ });
 
     await user.click(row);
 
-    expect(screen.getByText("invalid_amount")).toBeInTheDocument();
-    expect(screen.getByText("invalid_foreign_key")).toHaveTextContent("invalid_foreign_key ×1");
-    expect(screen.getByText("coerce_amount")).toHaveTextContent("coerce_amount ×2");
-    expect(screen.getByText(/84.3 ms\/row/)).toBeInTheDocument();
+    expect(screen.getByText("Invalid amount")).toBeInTheDocument();
+    expect(screen.getByText("Invalid foreign key")).toHaveTextContent("Invalid foreign key ×1");
+    expect(screen.getByText("Coerce amount")).toHaveTextContent("Coerce amount ×2");
+    expect(screen.getByText(/0\.42 ms\/row/)).toBeInTheDocument();
   });
 
   it("shows fallback copy when a run has no errors or fixes", async () => {

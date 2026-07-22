@@ -48,6 +48,8 @@ export interface StatsOut {
   overall_heal_rate: number;
   auto_heal_rate: number;
   heal_rate_over_time: HealRatePoint[];
+  error_type_totals: Record<string, number>;
+  fixes_applied_totals: Record<string, number>;
 }
 
 export const FAILURE_MODES = [

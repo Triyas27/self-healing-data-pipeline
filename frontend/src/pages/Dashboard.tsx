@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import ErrorBreakdownChart from "../components/ErrorBreakdownChart";
 import HealRateChart from "../components/HealRateChart";
 import RunsTable from "../components/RunsTable";
 import StatTile from "../components/StatTile";
@@ -38,6 +39,14 @@ export default function Dashboard() {
       <div className="panel">
         <h2>Heal rate over time</h2>
         <HealRateChart data={stats?.heal_rate_over_time ?? []} />
+      </div>
+
+      <div className="panel">
+        <h2>What's going wrong, and how it's getting fixed</h2>
+        <ErrorBreakdownChart
+          errorTypeTotals={stats?.error_type_totals ?? {}}
+          fixesAppliedTotals={stats?.fixes_applied_totals ?? {}}
+        />
       </div>
 
       <div className="panel">

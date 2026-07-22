@@ -16,3 +16,5 @@ class StatsOut(BaseModel):
     overall_heal_rate: float
     auto_heal_rate: float
     heal_rate_over_time: list[HealRatePoint]
+    error_type_totals: dict[str, int]
+    fixes_applied_totals: dict[str, int]
