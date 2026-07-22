@@ -43,7 +43,7 @@ export default function QuarantineTable({ rows, onResolve }: QuarantineTableProp
         {rows.map((row) => (
           <Fragment key={row.id}>
             <tr
-              className="quarantine-row"
+              className="expandable-row"
               tabIndex={0}
               role="button"
               aria-expanded={expandedId === row.id}

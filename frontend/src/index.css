@@ -232,12 +232,48 @@ button.secondary {
   color: white;
 }
 
-.quarantine-row {
+.expandable-row {
   cursor: pointer;
 }
 
-.quarantine-row:hover {
+.expandable-row:hover {
   background: var(--surface-2);
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.chip .count {
+  color: var(--text-muted);
+}
+
+.detail-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.detail-columns h4 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  font-weight: 600;
 }
 
 .detail-panel {
