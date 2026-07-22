@@ -7,7 +7,8 @@ TRANSFORM_REGISTRY = {
     TransformID.FIX_ENCODING: fix_encoding,
 }
 
-assert set(TRANSFORM_REGISTRY.keys()) == set(TransformID), "Every TransformID must have a registered function"
+if set(TRANSFORM_REGISTRY.keys()) != set(TransformID):
+    raise RuntimeError("Every TransformID must have a registered function")
 
 
 def apply_transform(transform_id: TransformID, row: dict[str, str], field: str) -> dict[str, str] | None:

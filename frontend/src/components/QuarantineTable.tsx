@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useState, type KeyboardEvent } from "react";
 import type { QuarantineRow } from "../api/types";
 
 interface QuarantineTableProps {
@@ -11,6 +11,20 @@ export default function QuarantineTable({ rows, onResolve }: QuarantineTableProp
 
   if (rows.length === 0) {
     return <div className="empty-state">No quarantined rows match this filter.</div>;
+  }
+
+  function toggleExpanded(id: number) {
+    setExpandedId(expandedId === id ? null : id);
+  }
+
+  function handleRowKeyDown(e: KeyboardEvent<HTMLTableRowElement>, id: number) {
+    // Ignore keydowns bubbling up from focusable descendants (e.g. the Resolve button)
+    // so activating that button doesn't also toggle the row.
+    if (e.target !== e.currentTarget) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      toggleExpanded(id);
+    }
   }
 
   return (
@@ -30,7 +44,11 @@ export default function QuarantineTable({ rows, onResolve }: QuarantineTableProp
           <Fragment key={row.id}>
             <tr
               className="quarantine-row"
-              onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}
+              tabIndex={0}
+              role="button"
+              aria-expanded={expandedId === row.id}
+              onClick={() => toggleExpanded(row.id)}
+              onKeyDown={(e) => handleRowKeyDown(e, row.id)}
             >
               <td>#{row.id}</td>
               <td>#{row.run_id}</td>

@@ -27,6 +27,13 @@ def test_coerce_amount_is_non_destructive_on_already_clean_value():
     assert coerce_amount(VALID_ROW, "amount") is None
 
 
+def test_coerce_amount_declines_accounting_negative_notation():
+    # "(49.99)" means -49.99 in accounting notation. Stripping the parens as
+    # noise would silently flip the sign, which is fabrication, not a fix.
+    row = {**VALID_ROW, "amount": "(49.99)"}
+    assert coerce_amount(row, "amount") is None
+
+
 def test_reformat_date_converts_dd_mm_yyyy_to_iso():
     row = {**VALID_ROW, "order_date": "01/07/2026"}
     repaired = reformat_date(row, "order_date")
