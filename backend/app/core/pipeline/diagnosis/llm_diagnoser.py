@@ -1,6 +1,6 @@
 import json
 
-from groq import Groq
+from groq import AsyncGroq
 
 from app.config import settings
 from app.core.pipeline.diagnosis.base import Diagnosis, TransformID
@@ -25,7 +25,7 @@ class LLMDiagnosisError(Exception):
     pass
 
 
-def diagnose_llm(result: RowValidationResult, client: Groq | None = None) -> Diagnosis:
+async def diagnose_llm(result: RowValidationResult, client: AsyncGroq | None = None) -> Diagnosis:
     if result.valid:
         raise ValueError("Cannot diagnose a row that already passed validation")
     if client is None and not settings.groq_api_key:
@@ -41,8 +41,8 @@ def diagnose_llm(result: RowValidationResult, client: Groq | None = None) -> Dia
     )
 
     try:
-        groq_client = client or Groq(api_key=settings.groq_api_key)
-        response = groq_client.chat.completions.create(
+        groq_client = client or AsyncGroq(api_key=settings.groq_api_key)
+        response = await groq_client.chat.completions.create(
             model=settings.llm_model,
             messages=[
                 {"role": "system", "content": _SYSTEM_PROMPT},

@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
 
 from pydantic import ValidationError
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import CustomerReference, Order
 from app.schemas.order import ORDER_COLUMNS, OrderIn
@@ -36,12 +37,14 @@ class BatchValidationResult:
         return [r for r in self.results if not r.valid]
 
 
-def load_known_customer_ids(db: Session) -> set[str]:
-    return {row.customer_id for row in db.query(CustomerReference).all()}
+async def load_known_customer_ids(db: AsyncSession) -> set[str]:
+    result = await db.execute(select(CustomerReference.customer_id))
+    return set(result.scalars().all())
 
 
-def load_existing_order_ids(db: Session) -> set[str]:
-    return {row.order_id for row in db.query(Order.order_id).all()}
+async def load_existing_order_ids(db: AsyncSession) -> set[str]:
+    result = await db.execute(select(Order.order_id))
+    return set(result.scalars().all())
 
 
 def check_schema_drift(rows: list[dict]) -> None:

@@ -1,7 +1,8 @@
+import asyncio
 import logging
 import time
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.alerting import AlertPayload, send_quarantine_alert
@@ -21,7 +22,7 @@ from app.models import AuditEntry, Order, Run
 logger = logging.getLogger(__name__)
 
 
-def _persist_audit_entry(db: Session, run_id: int, row_identifier: str, diagnosis: Diagnosis, outcome: str) -> None:
+def _persist_audit_entry(db: AsyncSession, run_id: int, row_identifier: str, diagnosis: Diagnosis, outcome: str) -> None:
     db.add(
         AuditEntry(
             run_id=run_id,
@@ -36,7 +37,19 @@ def _persist_audit_entry(db: Session, run_id: int, row_identifier: str, diagnosi
     )
 
 
-def run_pipeline(db: Session, source: CsvSource, use_llm: bool | None = None) -> Run:
+async def _diagnose_and_repair(
+    invalid_result, known_ids: set[str], use_llm: bool | None, semaphore: asyncio.Semaphore
+):
+    async with semaphore:
+        started = time.perf_counter()
+        outcome = await repair_row(
+            invalid_result, known_ids, max_attempts=settings.max_repair_attempts, use_llm=use_llm
+        )
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        return outcome, elapsed_ms
+
+
+async def run_pipeline(db: AsyncSession, source: CsvSource, use_llm: bool | None = None) -> Run:
     """Wires ingestion -> validation -> diagnosis -> repair -> re-validation ->
     quarantine into a single tracked run. Records one Run log entry with
     row/heal/quarantine counts, error types, fixes applied, average
@@ -48,15 +61,15 @@ def run_pipeline(db: Session, source: CsvSource, use_llm: bool | None = None) ->
     """
     run = Run(row_count=0, status="running")
     db.add(run)
-    db.commit()
-    db.refresh(run)
+    await db.commit()
+    await db.refresh(run)
 
     try:
         rows = read_csv_rows(source)
     except Exception:
         run.status = "failed"
         run.finished_at = utcnow()
-        db.commit()
+        await db.commit()
         raise
 
     run.row_count = len(rows)
@@ -64,12 +77,12 @@ def run_pipeline(db: Session, source: CsvSource, use_llm: bool | None = None) ->
     if len(rows) > settings.max_upload_rows:
         run.status = "failed"
         run.finished_at = utcnow()
-        db.commit()
-        db.refresh(run)
+        await db.commit()
+        await db.refresh(run)
         raise ValueError(f"Batch has {len(rows)} rows, exceeding the {settings.max_upload_rows}-row upload cap")
 
-    known_ids = load_known_customer_ids(db)
-    existing_order_ids = load_existing_order_ids(db)
+    known_ids = await load_known_customer_ids(db)
+    existing_order_ids = await load_existing_order_ids(db)
 
     try:
         batch_result = validate_batch(rows, known_ids, existing_order_ids)
@@ -77,8 +90,8 @@ def run_pipeline(db: Session, source: CsvSource, use_llm: bool | None = None) ->
         run.status = "rejected_schema_drift"
         run.finished_at = utcnow()
         run.error_types = {"schema_drift": len(exc.unexpected_columns)}
-        db.commit()
-        db.refresh(run)
+        await db.commit()
+        await db.refresh(run)
         logger.error("Run %s rejected: schema drift in columns %s", run.id, sorted(exc.unexpected_columns))
         return run
 
@@ -93,15 +106,23 @@ def run_pipeline(db: Session, source: CsvSource, use_llm: bool | None = None) ->
         heal_times_ms: list[float] = []
         healed_count = 0
 
-        for invalid_result in batch_result.invalid_rows:
+        # Diagnosis (the LLM call in particular) is the slow, I/O-bound step.
+        # Run it concurrently across every invalid row instead of one at a
+        # time. A semaphore caps how many requests are in flight together so
+        # a large batch doesn't slam the LLM provider's rate limits. The
+        # database session isn't touched inside repair_row, so it's safe to
+        # run these concurrently and only write results back sequentially.
+        semaphore = asyncio.Semaphore(settings.max_concurrent_diagnoses)
+        repair_results = await asyncio.gather(
+            *[
+                _diagnose_and_repair(invalid_result, known_ids, use_llm, semaphore)
+                for invalid_result in batch_result.invalid_rows
+            ]
+        )
+
+        for invalid_result, (outcome, elapsed_ms) in zip(batch_result.invalid_rows, repair_results):
             error_type_counts[invalid_result.error_type] = error_type_counts.get(invalid_result.error_type, 0) + 1
             row_identifier = invalid_result.raw_row.get("order_id") or f"row-{invalid_result.row_index}"
-
-            started = time.perf_counter()
-            outcome = repair_row(
-                invalid_result, known_ids, max_attempts=settings.max_repair_attempts, use_llm=use_llm
-            )
-            elapsed_ms = (time.perf_counter() - started) * 1000
 
             for i, attempt in enumerate(outcome.attempts):
                 is_last = i == len(outcome.attempts) - 1
@@ -122,7 +143,7 @@ def run_pipeline(db: Session, source: CsvSource, use_llm: bool | None = None) ->
                 db.add(Order(run_id=run.id, **outcome.order.model_dump()))
             else:
                 quarantined_count += 1
-                persist_quarantine_row(db, run.id, invalid_result, outcome)
+                await persist_quarantine_row(db, run.id, invalid_result, outcome)
 
         run.clean_first_pass = len(batch_result.valid_rows)
         run.healed = healed_count
@@ -132,15 +153,15 @@ def run_pipeline(db: Session, source: CsvSource, use_llm: bool | None = None) ->
         run.avg_time_to_heal_ms = sum(heal_times_ms) / len(heal_times_ms) if heal_times_ms else None
         run.status = "completed"
         run.finished_at = utcnow()
-        db.commit()
-        db.refresh(run)
+        await db.commit()
+        await db.refresh(run)
     except Exception:
-        # Whatever rows were already processed get committed along with the
+        # Whatever rows were already staged get committed along with the
         # failed status -- better to keep partial progress than lose it, and
         # the run is never left stuck at "running" with no error recorded.
         run.status = "failed"
         run.finished_at = utcnow()
-        db.commit()
+        await db.commit()
         raise
 
     if quarantined_count > 0:

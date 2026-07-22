@@ -1,24 +1,29 @@
+import asyncio
+
+from sqlalchemy import select
+
 from app.core.pipeline.validation import SchemaDriftError, load_known_customer_ids, validate_batch
-from app.db.session import SessionLocal, init_db
+from app.db.session import AsyncSessionLocal, init_db
 from app.models import CustomerReference
 from app.synthetic.generator import FailureMode, generate_batch, known_customer_ids
 
 NON_DRIFT_MODES = [m for m in FailureMode if m != FailureMode.SCHEMA_DRIFT]
 
 
-def seed_customers(db) -> None:
-    existing = {c.customer_id for c in db.query(CustomerReference).all()}
+async def seed_customers(db) -> None:
+    result = await db.execute(select(CustomerReference.customer_id))
+    existing = set(result.scalars().all())
     for cid in known_customer_ids():
         if cid not in existing:
             db.add(CustomerReference(customer_id=cid))
-    db.commit()
+    await db.commit()
 
 
-def main() -> None:
-    init_db()
-    db = SessionLocal()
-    seed_customers(db)
-    known_ids = load_known_customer_ids(db)
+async def main() -> None:
+    await init_db()
+    async with AsyncSessionLocal() as db:
+        await seed_customers(db)
+        known_ids = await load_known_customer_ids(db)
 
     print("== Scenario A: mixed per-row failures, batch still processed ==")
     rows = generate_batch(row_count=8, failure_rate=0.0, seed=1).rows
@@ -43,4 +48,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

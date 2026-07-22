@@ -2,24 +2,23 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import func, select
 
 from app.api.routes import health, quarantine, runs, stats
-from app.db.session import SessionLocal, init_db
+from app.db.session import AsyncSessionLocal, init_db
 from app.models import CustomerReference
 from app.synthetic.generator import known_customer_ids
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
-    db = SessionLocal()
-    try:
-        if db.query(CustomerReference).count() == 0:
+    await init_db()
+    async with AsyncSessionLocal() as db:
+        count = await db.scalar(select(func.count()).select_from(CustomerReference))
+        if count == 0:
             for cid in known_customer_ids():
                 db.add(CustomerReference(customer_id=cid))
-            db.commit()
-    finally:
-        db.close()
+            await db.commit()
     yield
 
 

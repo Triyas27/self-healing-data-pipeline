@@ -1,3 +1,5 @@
+import asyncio
+
 from app.config import settings
 from app.core.pipeline.repair.repair import repair_row
 from app.core.pipeline.validation import validate_batch
@@ -6,7 +8,7 @@ from app.synthetic.generator import FailureMode, generate_batch, known_customer_
 NON_DRIFT_MODES = [m for m in FailureMode if m != FailureMode.SCHEMA_DRIFT]
 
 
-def main() -> None:
+async def main() -> None:
     rows = []
     for i, mode in enumerate(NON_DRIFT_MODES):
         rows.append(
@@ -16,9 +18,15 @@ def main() -> None:
     known_ids = set(known_customer_ids())
     result = validate_batch(rows, known_ids)
 
-    print(f"{len(result.invalid_rows)} invalid rows, running repair (max_attempts={settings.max_repair_attempts})\n")
-    for row_result in result.invalid_rows:
-        outcome = repair_row(row_result, known_ids, max_attempts=settings.max_repair_attempts, use_llm=False)
+    print(f"{len(result.invalid_rows)} invalid rows, running repair concurrently (max_attempts={settings.max_repair_attempts})\n")
+    outcomes = await asyncio.gather(
+        *[
+            repair_row(row_result, known_ids, max_attempts=settings.max_repair_attempts, use_llm=False)
+            for row_result in result.invalid_rows
+        ]
+    )
+
+    for row_result, outcome in zip(result.invalid_rows, outcomes):
         status = "HEALED" if outcome.healed else f"QUARANTINED ({outcome.quarantine_reason})"
         print(f"row {row_result.row_index} [{row_result.error_type}] -> {status}")
         for i, attempt in enumerate(outcome.attempts, start=1):
@@ -30,4 +38,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

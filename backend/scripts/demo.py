@@ -1,6 +1,8 @@
+import asyncio
+
 from pydantic import ValidationError
 
-from app.db.session import SessionLocal, init_db
+from app.db.session import AsyncSessionLocal, init_db
 from app.models import CustomerReference, Order, Run
 from app.schemas.order import OrderIn
 
@@ -16,23 +18,22 @@ VALID_ROW = {
 INVALID_ROW = {**VALID_ROW, "order_id": "not-an-order-id", "currency": "XYZ"}
 
 
-def main() -> None:
-    init_db()
-    db = SessionLocal()
+async def main() -> None:
+    await init_db()
+    async with AsyncSessionLocal() as db:
+        if not await db.get(CustomerReference, "CUST-1001"):
+            db.add(CustomerReference(customer_id="CUST-1001"))
+            await db.commit()
 
-    if not db.get(CustomerReference, "CUST-1001"):
-        db.add(CustomerReference(customer_id="CUST-1001"))
-        db.commit()
+        run = Run(row_count=1)
+        db.add(run)
+        await db.commit()
+        await db.refresh(run)
 
-    run = Run(row_count=1)
-    db.add(run)
-    db.commit()
-    db.refresh(run)
-
-    validated = OrderIn.model_validate(VALID_ROW)
-    db.add(Order(run_id=run.id, **validated.model_dump()))
-    db.commit()
-    print(f"Inserted valid order {validated.order_id} into run {run.id}")
+        validated = OrderIn.model_validate(VALID_ROW)
+        db.add(Order(run_id=run.id, **validated.model_dump()))
+        await db.commit()
+        print(f"Inserted valid order {validated.order_id} into run {run.id}")
 
     try:
         OrderIn.model_validate(INVALID_ROW)
@@ -43,4 +44,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

@@ -1,4 +1,5 @@
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pipeline.repair.repair import RepairOutcome
 from app.core.pipeline.validation import RowValidationResult
@@ -27,8 +28,8 @@ def _diagnosis_history(outcome: RepairOutcome) -> list[dict]:
     return history
 
 
-def persist_quarantine_row(
-    db: Session, run_id: int, result: RowValidationResult, outcome: RepairOutcome
+async def persist_quarantine_row(
+    db: AsyncSession, run_id: int, result: RowValidationResult, outcome: RepairOutcome
 ) -> QuarantineRow:
     """Persists original data, error type/detail, attempt count, and the full
     diagnosis history for a row that repair could not heal."""
@@ -42,28 +43,30 @@ def persist_quarantine_row(
         resolved=False,
     )
     db.add(quarantine_row)
-    db.commit()
-    db.refresh(quarantine_row)
+    await db.commit()
+    await db.refresh(quarantine_row)
     return quarantine_row
 
 
-def resolve_quarantine_row(db: Session, quarantine_row_id: int) -> QuarantineRow | None:
+async def resolve_quarantine_row(db: AsyncSession, quarantine_row_id: int) -> QuarantineRow | None:
     """Lets a human operator mark a quarantined row as resolved."""
-    quarantine_row = db.get(QuarantineRow, quarantine_row_id)
+    quarantine_row = await db.get(QuarantineRow, quarantine_row_id)
     if quarantine_row is None:
         return None
     quarantine_row.resolved = True
-    db.commit()
-    db.refresh(quarantine_row)
+    await db.commit()
+    await db.refresh(quarantine_row)
     return quarantine_row
 
 
-def list_quarantine_rows(
-    db: Session, run_id: int | None = None, resolved: bool | None = None
+async def list_quarantine_rows(
+    db: AsyncSession, run_id: int | None = None, resolved: bool | None = None
 ) -> list[QuarantineRow]:
-    query = db.query(QuarantineRow)
+    query = select(QuarantineRow)
     if run_id is not None:
-        query = query.filter(QuarantineRow.run_id == run_id)
+        query = query.where(QuarantineRow.run_id == run_id)
     if resolved is not None:
-        query = query.filter(QuarantineRow.resolved == resolved)
-    return query.order_by(QuarantineRow.created_at.desc()).all()
+        query = query.where(QuarantineRow.resolved == resolved)
+    query = query.order_by(QuarantineRow.created_at.desc())
+    result = await db.execute(query)
+    return list(result.scalars().all())

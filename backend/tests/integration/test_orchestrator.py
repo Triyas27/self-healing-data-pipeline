@@ -1,8 +1,10 @@
 import io
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
+import pytest_asyncio
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.pool import StaticPool
 
 import app.core.pipeline.orchestrator as orchestrator_module
 from app.config import settings
@@ -12,14 +14,31 @@ from app.models import AuditEntry, CustomerReference, Order, QuarantineRow, Run
 from app.synthetic.generator import FailureMode, generate_batch, known_customer_ids, to_csv_string
 
 
-def _make_db() -> Session:
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    db = Session(engine)
-    for cid in known_customer_ids():
-        db.add(CustomerReference(customer_id=cid))
-    db.commit()
-    return db
+@pytest_asyncio.fixture()
+async def db() -> AsyncSession:
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async with AsyncSession(engine, expire_on_commit=False) as session:
+        for cid in known_customer_ids():
+            session.add(CustomerReference(customer_id=cid))
+        await session.commit()
+        yield session
+    await engine.dispose()
+
+
+async def _count(db: AsyncSession, model, **filters) -> int:
+    query = select(func.count()).select_from(model)
+    for key, value in filters.items():
+        query = query.where(getattr(model, key) == value)
+    return await db.scalar(query)
+
+
+async def _latest_run(db: AsyncSession) -> Run:
+    result = await db.execute(select(Run).order_by(Run.id.desc()))
+    return result.scalars().first()
 
 
 def _make_failing_row(mode: FailureMode, index: int, seed: int) -> dict:
@@ -37,9 +56,7 @@ def _make_failing_row(mode: FailureMode, index: int, seed: int) -> dict:
     return row
 
 
-def test_full_run_every_row_lands_in_clean_or_quarantine_store():
-    db = _make_db()
-
+async def test_full_run_every_row_lands_in_clean_or_quarantine_store(db):
     clean_rows = generate_batch(row_count=6, failure_rate=0.0, seed=1).rows
     failing_rows = [
         _make_failing_row(mode, i, seed=100 + i)
@@ -47,21 +64,21 @@ def test_full_run_every_row_lands_in_clean_or_quarantine_store():
     ]
     csv_text = to_csv_string(clean_rows + failing_rows)
 
-    run = run_pipeline(db, io.StringIO(csv_text), use_llm=False)
+    run = await run_pipeline(db, io.StringIO(csv_text), use_llm=False)
 
     assert run.status == "completed"
     assert run.row_count == len(clean_rows) + len(failing_rows)
     # every ingested row ends up in the clean store or the quarantine store
     assert run.clean_first_pass + run.healed + run.quarantined == run.row_count
 
-    order_count = db.query(Order).filter(Order.run_id == run.id).count()
-    quarantine_count = db.query(QuarantineRow).filter(QuarantineRow.run_id == run.id).count()
+    order_count = await _count(db, Order, run_id=run.id)
+    quarantine_count = await _count(db, QuarantineRow, run_id=run.id)
     assert order_count == run.clean_first_pass + run.healed
     assert quarantine_count == run.quarantined
     assert order_count + quarantine_count == run.row_count
 
     # every repair decision should be recorded
-    audit_count = db.query(AuditEntry).filter(AuditEntry.run_id == run.id).count()
+    audit_count = await _count(db, AuditEntry, run_id=run.id)
     assert audit_count >= len(failing_rows)
 
     assert run.healed > 0
@@ -70,35 +87,32 @@ def test_full_run_every_row_lands_in_clean_or_quarantine_store():
     assert run.fixes_applied
 
 
-def test_schema_drift_rejects_whole_batch_without_raising():
-    db = _make_db()
+async def test_schema_drift_rejects_whole_batch_without_raising(db):
     drift_rows = generate_batch(
         row_count=5, failure_rate=1.0, failure_mode=FailureMode.SCHEMA_DRIFT, seed=1
     ).rows
     csv_text = to_csv_string(drift_rows)
 
-    run = run_pipeline(db, io.StringIO(csv_text), use_llm=False)
+    run = await run_pipeline(db, io.StringIO(csv_text), use_llm=False)
 
     assert run.status == "rejected_schema_drift"
-    assert db.query(Order).filter(Order.run_id == run.id).count() == 0
-    assert db.query(QuarantineRow).filter(QuarantineRow.run_id == run.id).count() == 0
+    assert await _count(db, Order, run_id=run.id) == 0
+    assert await _count(db, QuarantineRow, run_id=run.id) == 0
 
 
-def test_ingestion_failure_marks_run_failed_and_reraises():
-    db = _make_db()
+async def test_ingestion_failure_marks_run_failed_and_reraises(db):
     with pytest.raises(FileNotFoundError):
-        run_pipeline(db, "does-not-exist.csv", use_llm=False)
+        await run_pipeline(db, "does-not-exist.csv", use_llm=False)
 
-    failed_run = db.query(Run).order_by(Run.id.desc()).first()
+    failed_run = await _latest_run(db)
     assert failed_run.status == "failed"
 
 
-def test_all_clean_batch_has_zero_healed_and_quarantined():
-    db = _make_db()
+async def test_all_clean_batch_has_zero_healed_and_quarantined(db):
     clean_rows = generate_batch(row_count=10, failure_rate=0.0, seed=2).rows
     csv_text = to_csv_string(clean_rows)
 
-    run = run_pipeline(db, io.StringIO(csv_text), use_llm=False)
+    run = await run_pipeline(db, io.StringIO(csv_text), use_llm=False)
 
     assert run.status == "completed"
     assert run.clean_first_pass == 10
@@ -107,50 +121,47 @@ def test_all_clean_batch_has_zero_healed_and_quarantined():
     assert run.avg_time_to_heal_ms is None
 
 
-def test_reuploading_the_same_batch_quarantines_the_duplicates():
-    db = _make_db()
+async def test_reuploading_the_same_batch_quarantines_the_duplicates(db):
     clean_rows = generate_batch(row_count=5, failure_rate=0.0, seed=3).rows
     csv_text = to_csv_string(clean_rows)
 
-    first_run = run_pipeline(db, io.StringIO(csv_text), use_llm=False)
+    first_run = await run_pipeline(db, io.StringIO(csv_text), use_llm=False)
     assert first_run.clean_first_pass == 5
 
-    second_run = run_pipeline(db, io.StringIO(csv_text), use_llm=False)
+    second_run = await run_pipeline(db, io.StringIO(csv_text), use_llm=False)
     assert second_run.status == "completed"
     assert second_run.clean_first_pass == 0
     assert second_run.quarantined == 5
     assert second_run.error_types == {"duplicate_order_id": 5}
 
 
-def test_row_count_over_cap_marks_run_failed(monkeypatch):
-    db = _make_db()
+async def test_row_count_over_cap_marks_run_failed(db, monkeypatch):
     monkeypatch.setattr(settings, "max_upload_rows", 3)
     rows = generate_batch(row_count=5, failure_rate=0.0, seed=1).rows
     csv_text = to_csv_string(rows)
 
     with pytest.raises(ValueError, match="exceeding"):
-        run_pipeline(db, io.StringIO(csv_text), use_llm=False)
+        await run_pipeline(db, io.StringIO(csv_text), use_llm=False)
 
-    failed_run = db.query(Run).order_by(Run.id.desc()).first()
+    failed_run = await _latest_run(db)
     assert failed_run.status == "failed"
     assert failed_run.row_count == 5
 
 
-def test_unexpected_exception_during_repair_marks_run_failed_not_stuck(monkeypatch):
-    db = _make_db()
+async def test_unexpected_exception_during_repair_marks_run_failed_not_stuck(db, monkeypatch):
     rows = generate_batch(
         row_count=3, failure_rate=1.0, failure_mode=FailureMode.INVALID_FOREIGN_KEY, seed=1
     ).rows
     csv_text = to_csv_string(rows)
 
-    def _boom(*args, **kwargs):
+    async def _boom(*args, **kwargs):
         raise RuntimeError("simulated crash mid-repair")
 
     monkeypatch.setattr(orchestrator_module, "repair_row", _boom)
 
     with pytest.raises(RuntimeError, match="simulated crash"):
-        run_pipeline(db, io.StringIO(csv_text), use_llm=False)
+        await run_pipeline(db, io.StringIO(csv_text), use_llm=False)
 
-    crashed_run = db.query(Run).order_by(Run.id.desc()).first()
+    crashed_run = await _latest_run(db)
     assert crashed_run.status == "failed"
     assert crashed_run.finished_at is not None

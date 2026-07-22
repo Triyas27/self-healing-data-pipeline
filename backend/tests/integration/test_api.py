@@ -1,7 +1,8 @@
+import asyncio
+
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
@@ -13,26 +14,26 @@ from app.synthetic.generator import known_customer_ids
 
 @pytest.fixture()
 def client():
-    engine = create_engine(
-        "sqlite:///:memory:",
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    Base.metadata.create_all(engine)
-    TestingSessionLocal = sessionmaker(bind=engine)
+    TestingSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-    seed_db = TestingSessionLocal()
-    for cid in known_customer_ids():
-        seed_db.add(CustomerReference(customer_id=cid))
-    seed_db.commit()
-    seed_db.close()
+    async def _setup():
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        async with TestingSessionLocal() as seed_db:
+            for cid in known_customer_ids():
+                seed_db.add(CustomerReference(customer_id=cid))
+            await seed_db.commit()
 
-    def override_get_db():
-        db = TestingSessionLocal()
-        try:
+    asyncio.run(_setup())
+
+    async def override_get_db():
+        async with TestingSessionLocal() as db:
             yield db
-        finally:
-            db.close()
 
     app.dependency_overrides[get_db] = override_get_db
     yield TestClient(app)

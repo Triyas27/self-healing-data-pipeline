@@ -1,3 +1,5 @@
+import asyncio
+
 from app.core.pipeline.diagnosis import diagnose
 from app.core.pipeline.validation import validate_batch
 from app.synthetic.generator import FailureMode, generate_batch, known_customer_ids
@@ -5,7 +7,7 @@ from app.synthetic.generator import FailureMode, generate_batch, known_customer_
 NON_DRIFT_MODES = [m for m in FailureMode if m != FailureMode.SCHEMA_DRIFT]
 
 
-def main() -> None:
+async def main() -> None:
     rows = []
     for i, mode in enumerate(NON_DRIFT_MODES):
         rows.append(
@@ -16,7 +18,7 @@ def main() -> None:
 
     print(f"{len(result.invalid_rows)} invalid rows, diagnosing each (heuristic mode)\n")
     for row_result in result.invalid_rows:
-        diagnosis = diagnose(row_result, use_llm=False)
+        diagnosis = await diagnose(row_result, use_llm=False)
         outcome = diagnosis.transform.value if diagnosis.has_fix else "NO FIX"
         print(f"row {row_result.row_index} [{row_result.error_type}]")
         print(f"  hypothesis: {diagnosis.hypothesis}")
@@ -25,4 +27,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

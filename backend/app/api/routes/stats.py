@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.models import Run
@@ -9,8 +10,9 @@ router = APIRouter(prefix="/stats", tags=["stats"])
 
 
 @router.get("", response_model=StatsOut)
-def get_stats(db: Session = Depends(get_db)):
-    runs = db.query(Run).filter(Run.status == "completed").order_by(Run.id.asc()).all()
+async def get_stats(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Run).where(Run.status == "completed").order_by(Run.id.asc()))
+    runs = result.scalars().all()
 
     total_rows = sum(r.row_count for r in runs)
     total_clean = sum(r.clean_first_pass for r in runs)

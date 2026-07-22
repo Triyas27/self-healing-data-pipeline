@@ -1,30 +1,37 @@
+import asyncio
 import io
+import time
 
-from app.db.session import SessionLocal, init_db
-from app.models import CustomerReference
+from sqlalchemy import select
+
 from app.core.pipeline.orchestrator import run_pipeline
+from app.db.session import AsyncSessionLocal, init_db
+from app.models import CustomerReference
 from app.synthetic.generator import generate_batch, known_customer_ids, to_csv_string
 
 
-def seed_customers(db) -> None:
-    existing = {c.customer_id for c in db.query(CustomerReference).all()}
+async def seed_customers(db) -> None:
+    result = await db.execute(select(CustomerReference.customer_id))
+    existing = set(result.scalars().all())
     for cid in known_customer_ids():
         if cid not in existing:
             db.add(CustomerReference(customer_id=cid))
-    db.commit()
+    await db.commit()
 
 
-def main() -> None:
-    init_db()
-    db = SessionLocal()
-    seed_customers(db)
+async def main() -> None:
+    await init_db()
+    async with AsyncSessionLocal() as db:
+        await seed_customers(db)
 
-    batch = generate_batch(row_count=50, failure_rate=0.3, seed=35)
-    csv_text = to_csv_string(batch.rows)
+        batch = generate_batch(row_count=50, failure_rate=0.3, seed=35)
+        csv_text = to_csv_string(batch.rows)
 
-    run = run_pipeline(db, io.StringIO(csv_text), use_llm=False)
+        started = time.perf_counter()
+        run = await run_pipeline(db, io.StringIO(csv_text), use_llm=False)
+        elapsed = time.perf_counter() - started
 
-    print(f"Run {run.id}: status={run.status}")
+    print(f"Run {run.id}: status={run.status}  (wall time: {elapsed:.2f}s)")
     print(f"  row_count:          {run.row_count}")
     print(f"  clean_first_pass:   {run.clean_first_pass}")
     print(f"  healed:             {run.healed}")
@@ -37,4 +44,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

@@ -23,7 +23,7 @@ class RepairOutcome:
     quarantine_reason: str | None = None  # "no_fix" | "attempts_exhausted"
 
 
-def repair_row(
+async def repair_row(
     result: RowValidationResult,
     known_customer_ids: set[str],
     max_attempts: int,
@@ -39,7 +39,7 @@ def repair_row(
     attempts: list[RepairAttempt] = []
 
     for _ in range(max_attempts):
-        diagnosis = diagnose(current_result, use_llm=use_llm)
+        diagnosis = await diagnose(current_result, use_llm=use_llm)
 
         if not diagnosis.has_fix:
             attempts.append(
@@ -55,12 +55,16 @@ def repair_row(
                 quarantine_reason="no_fix",
             )
 
-        field_name = (
-            current_result.errors[0]["loc"][0]
-            if current_result.errors and current_result.errors[0]["loc"]
-            else None
-        )
-        repaired_row = apply_transform(diagnosis.transform, current_result.raw_row, field_name)
+        # The diagnosis says which transform to use, but not which field it
+        # applies to -- a row can have more than one current error, and the
+        # transform might apply to any of them. Try each field with a current
+        # error until the transform actually produces a repair.
+        candidate_fields = [e["loc"][0] for e in current_result.errors if e["loc"]] or [None]
+        repaired_row = None
+        for field_name in candidate_fields:
+            repaired_row = apply_transform(diagnosis.transform, current_result.raw_row, field_name)
+            if repaired_row is not None:
+                break
 
         if repaired_row is None:
             attempts.append(

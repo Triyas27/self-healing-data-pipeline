@@ -12,7 +12,7 @@ def _failing_result(mode: FailureMode, seed: int = 1) -> RowValidationResult:
     return result
 
 
-def test_healed_when_amount_has_currency_noise():
+async def test_healed_when_amount_has_currency_noise():
     row = {
         "order_id": "ORD-000001",
         "customer_id": "CUST-0001",
@@ -22,44 +22,83 @@ def test_healed_when_amount_has_currency_noise():
         "status": "pending",
     }
     result = validate_batch([row], set(known_customer_ids())).results[0]
-    outcome = repair_row(result, set(known_customer_ids()), max_attempts=3, use_llm=False)
+    outcome = await repair_row(result, set(known_customer_ids()), max_attempts=3, use_llm=False)
     assert outcome.healed is True
     assert outcome.final_row["amount"] == "49.99"
     assert len(outcome.attempts) == 1
 
 
-def test_healed_for_date_format_swap():
+async def test_healed_for_date_format_swap():
     result = _failing_result(FailureMode.DATE_FORMAT_SWAP)
-    outcome = repair_row(result, set(known_customer_ids()), max_attempts=3, use_llm=False)
+    outcome = await repair_row(result, set(known_customer_ids()), max_attempts=3, use_llm=False)
     assert outcome.healed is True
     assert outcome.order is not None
 
 
-def test_healed_for_encoding_issue():
+async def test_healed_for_encoding_issue():
     result = _failing_result(FailureMode.ENCODING_ISSUE)
-    outcome = repair_row(result, set(known_customer_ids()), max_attempts=3, use_llm=False)
+    outcome = await repair_row(result, set(known_customer_ids()), max_attempts=3, use_llm=False)
     assert outcome.healed is True
 
 
-def test_quarantined_no_fix_for_invalid_foreign_key():
+async def test_quarantined_no_fix_for_invalid_foreign_key():
     result = _failing_result(FailureMode.INVALID_FOREIGN_KEY)
-    outcome = repair_row(result, set(known_customer_ids()), max_attempts=3, use_llm=False)
+    outcome = await repair_row(result, set(known_customer_ids()), max_attempts=3, use_llm=False)
     assert outcome.healed is False
     assert outcome.quarantine_reason == "no_fix"
     assert len(outcome.attempts) == 1
 
 
-def test_quarantined_no_fix_for_null_required_field():
+async def test_quarantined_no_fix_for_null_required_field():
     result = _failing_result(FailureMode.NULL_REQUIRED_FIELD)
-    outcome = repair_row(result, set(known_customer_ids()), max_attempts=3, use_llm=False)
+    outcome = await repair_row(result, set(known_customer_ids()), max_attempts=3, use_llm=False)
     assert outcome.healed is False
     assert outcome.quarantine_reason == "no_fix"
 
 
-def test_attempts_exhausted_routes_to_quarantine(monkeypatch):
+async def test_applies_fix_to_the_correct_field_not_just_the_first_error():
+    # order_id is blank (unfixable) and listed first in errors; amount has
+    # fixable currency noise and is listed second. A field-targeting bug once
+    # made this call apply_transform to order_id (errors[0]) regardless of
+    # which field the diagnosis actually found fixable -- coerce_amount on a
+    # blank order_id returns None immediately, so the row was quarantined on
+    # attempt 1 without the amount fix ever being tried.
+    row = {
+        "order_id": "",
+        "customer_id": "CUST-0001",
+        "order_date": "2026-01-01",
+        "amount": "$49.99",
+        "currency": "USD",
+        "status": "pending",
+    }
+    result = RowValidationResult(
+        row_index=0,
+        raw_row=row,
+        valid=False,
+        error_type="invalid_order_id",
+        errors=[
+            {"loc": ("order_id",), "msg": "invalid", "type": "value_error"},
+            {"loc": ("amount",), "msg": "invalid", "type": "value_error"},
+        ],
+    )
+
+    outcome = await repair_row(result, known_customer_ids={"CUST-0001"}, max_attempts=3, use_llm=False)
+
+    # The row can never fully heal -- order_id has no safe fix -- but the
+    # amount fix must still have been attempted and applied correctly.
+    assert outcome.healed is False
+    assert outcome.quarantine_reason == "no_fix"
+    assert len(outcome.attempts) == 2
+    assert outcome.attempts[0].diagnosis.transform == TransformID.COERCE_AMOUNT
+    assert outcome.attempts[0].row_after is not None
+    assert outcome.attempts[0].row_after["amount"] == "49.99"
+    assert outcome.attempts[0].row_after["order_id"] == ""
+
+
+async def test_attempts_exhausted_routes_to_quarantine(monkeypatch):
     call_count = {"n": 0}
 
-    def fake_diagnose(result, use_llm=None):
+    async def fake_diagnose(result, use_llm=None):
         call_count["n"] += 1
         return Diagnosis(
             hypothesis="h", transform=TransformID.COERCE_AMOUNT, confidence=0.5, reasoning="r", source="heuristic"
@@ -91,7 +130,7 @@ def test_attempts_exhausted_routes_to_quarantine(monkeypatch):
         errors=[{"loc": ("amount",), "msg": "bad", "type": "value_error"}],
     )
 
-    outcome = repair_row(initial, known_customer_ids=set(), max_attempts=3)
+    outcome = await repair_row(initial, known_customer_ids=set(), max_attempts=3)
     assert outcome.healed is False
     assert outcome.quarantine_reason == "attempts_exhausted"
     assert len(outcome.attempts) == 3

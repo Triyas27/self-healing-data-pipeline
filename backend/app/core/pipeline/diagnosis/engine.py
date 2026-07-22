@@ -9,7 +9,7 @@ from app.core.pipeline.validation import RowValidationResult
 logger = logging.getLogger(__name__)
 
 
-def diagnose(result: RowValidationResult, use_llm: bool | None = None) -> Diagnosis:
+async def diagnose(result: RowValidationResult, use_llm: bool | None = None) -> Diagnosis:
     """Tries the LLM mode first when configured, otherwise uses the heuristic.
     Any LLM failure degrades gracefully to the heuristic path instead of
     aborting the run.
@@ -18,7 +18,7 @@ def diagnose(result: RowValidationResult, use_llm: bool | None = None) -> Diagno
 
     if should_try_llm:
         try:
-            return diagnose_llm(result)
+            return await diagnose_llm(result)
         except LLMDiagnosisError as exc:
             logger.warning("LLM diagnosis failed, falling back to heuristic: %s", exc)
 
