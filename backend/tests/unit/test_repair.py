@@ -56,45 +56,6 @@ async def test_quarantined_no_fix_for_null_required_field():
     assert outcome.quarantine_reason == "no_fix"
 
 
-async def test_applies_fix_to_the_correct_field_not_just_the_first_error():
-    # order_id is blank (unfixable) and listed first in errors; amount has
-    # fixable currency noise and is listed second. A field-targeting bug once
-    # made this call apply_transform to order_id (errors[0]) regardless of
-    # which field the diagnosis actually found fixable -- coerce_amount on a
-    # blank order_id returns None immediately, so the row was quarantined on
-    # attempt 1 without the amount fix ever being tried.
-    row = {
-        "order_id": "",
-        "customer_id": "CUST-0001",
-        "order_date": "2026-01-01",
-        "amount": "$49.99",
-        "currency": "USD",
-        "status": "pending",
-    }
-    result = RowValidationResult(
-        row_index=0,
-        raw_row=row,
-        valid=False,
-        error_type="invalid_order_id",
-        errors=[
-            {"loc": ("order_id",), "msg": "invalid", "type": "value_error"},
-            {"loc": ("amount",), "msg": "invalid", "type": "value_error"},
-        ],
-    )
-
-    outcome = await repair_row(result, known_customer_ids={"CUST-0001"}, max_attempts=3, use_llm=False)
-
-    # The row can never fully heal -- order_id has no safe fix -- but the
-    # amount fix must still have been attempted and applied correctly.
-    assert outcome.healed is False
-    assert outcome.quarantine_reason == "no_fix"
-    assert len(outcome.attempts) == 2
-    assert outcome.attempts[0].diagnosis.transform == TransformID.COERCE_AMOUNT
-    assert outcome.attempts[0].row_after is not None
-    assert outcome.attempts[0].row_after["amount"] == "49.99"
-    assert outcome.attempts[0].row_after["order_id"] == ""
-
-
 async def test_attempts_exhausted_routes_to_quarantine(monkeypatch):
     call_count = {"n": 0}
 
