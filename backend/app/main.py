@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func, select
 
 from app.api.routes import health, quarantine, runs, stats
+from app.config import settings
 from app.db.session import AsyncSessionLocal, init_db
 from app.models import CustomerReference
 from app.synthetic.generator import known_customer_ids
@@ -26,7 +27,7 @@ app = FastAPI(title="Self-Healing Data Pipeline", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=settings.cors_allowed_origins_list,
     allow_methods=["*"],
     allow_headers=["*"],
 )
