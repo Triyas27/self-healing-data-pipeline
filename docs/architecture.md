@@ -58,3 +58,7 @@ Totals, heal rate, auto-heal rate, quarantine count, a heal-rate-over-time chart
 `backend/tests/integration/` (end-to-end pipeline and API runs)
 
 Everything runs without network access or an API key. The LLM diagnoser is tested against a fake client, so the whole suite is fast and deterministic.
+
+## Known limitations
+
+- **No authentication.** Every API route is open — there's no login, API key, or session. This is a deliberate scope cut, not an oversight: the project has no real users or hosted deployment, so account management would be boilerplate that doesn't demonstrate anything the pipeline itself doesn't already cover. A single shared API key behind a FastAPI dependency would be the minimal fix if this ever needed to run somewhere reachable by more than one person.
