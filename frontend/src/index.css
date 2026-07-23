@@ -267,6 +267,18 @@ button.secondary {
   gap: 16px;
 }
 
+.detail-link {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.detail-link:hover {
+  text-decoration: underline;
+}
+
 .detail-columns h4 {
   margin: 0 0 8px;
   font-size: 11px;

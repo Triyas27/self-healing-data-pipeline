@@ -103,6 +103,34 @@ def test_list_and_get_run(client):
     assert get_resp.json()["id"] == run_id
 
 
+def test_get_run_audit_trail(client):
+    trigger_resp = client.post(
+        "/runs/trigger",
+        params={
+            "row_count": 3,
+            "failure_rate": 1.0,
+            "failure_mode": "invalid_foreign_key",
+            "seed": 1,
+            "use_llm": False,
+        },
+    )
+    run_id = trigger_resp.json()["id"]
+
+    resp = client.get(f"/runs/{run_id}/audit")
+    assert resp.status_code == 200
+    entries = resp.json()
+    assert len(entries) == 3
+    assert len({e["row_identifier"] for e in entries}) == 3
+    assert all(e["run_id"] == run_id for e in entries)
+    assert all(e["outcome"] == "no_fix" for e in entries)
+    assert all(e["transform_chosen"] is None for e in entries)
+
+
+def test_get_run_audit_trail_missing_run_404(client):
+    resp = client.get("/runs/999999/audit")
+    assert resp.status_code == 404
+
+
 def test_get_missing_run_404(client):
     resp = client.get("/runs/999999")
     assert resp.status_code == 404

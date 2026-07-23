@@ -1,25 +1,11 @@
 import { Fragment, useState, type KeyboardEvent } from "react";
+import { Link } from "react-router-dom";
+import ChipList from "./ChipList";
 import type { RunSummary } from "../api/types";
-import { formatHealTime, humanizeLabel } from "../utils/labels";
+import { formatHealTime } from "../utils/labels";
 
 interface RunsTableProps {
   runs: RunSummary[];
-}
-
-function ChipList({ counts, emptyLabel }: { counts: Record<string, number>; emptyLabel: string }) {
-  const entries = Object.entries(counts);
-  if (entries.length === 0) {
-    return <div className="muted">{emptyLabel}</div>;
-  }
-  return (
-    <div className="chip-list">
-      {entries.map(([label, count]) => (
-        <span className="chip" key={label}>
-          {humanizeLabel(label)} <span className="count">&times;{count}</span>
-        </span>
-      ))}
-    </div>
-  );
 }
 
 export default function RunsTable({ runs }: RunsTableProps) {
@@ -94,6 +80,9 @@ export default function RunsTable({ runs }: RunsTableProps) {
                         Avg time to heal: {formatHealTime(run.avg_time_to_heal_ms)}
                       </div>
                     )}
+                    <Link to={`/runs/${run.id}`} className="detail-link">
+                      View full audit trail &rarr;
+                    </Link>
                   </div>
                 </td>
               </tr>

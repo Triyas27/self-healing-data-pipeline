@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import RunsTable from "./RunsTable";
 import type { RunSummary } from "../api/types";
@@ -19,7 +20,11 @@ const RUN: RunSummary = {
 };
 
 function renderTable(runs: RunSummary[] = [RUN]) {
-  render(<RunsTable runs={runs} />);
+  render(
+    <MemoryRouter>
+      <RunsTable runs={runs} />
+    </MemoryRouter>
+  );
 }
 
 describe("RunsTable error/fix breakdown", () => {
@@ -39,6 +44,16 @@ describe("RunsTable error/fix breakdown", () => {
     expect(screen.getByText("Invalid foreign key")).toHaveTextContent("Invalid foreign key ×1");
     expect(screen.getByText("Coerce amount")).toHaveTextContent("Coerce amount ×2");
     expect(screen.getByText(/0\.42 ms\/row/)).toBeInTheDocument();
+  });
+
+  it("links to the run's dedicated audit trail page", async () => {
+    const user = userEvent.setup();
+    renderTable();
+    const row = screen.getByRole("button", { name: /12/ });
+
+    await user.click(row);
+
+    expect(screen.getByRole("link", { name: /view full audit trail/i })).toHaveAttribute("href", "/runs/12");
   });
 
   it("shows fallback copy when a run has no errors or fixes", async () => {

@@ -4,7 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pipeline.orchestrator import run_pipeline
 from app.db.session import get_db
-from app.models import Run
+from app.models import AuditEntry, Run
+from app.schemas.audit import AuditEntryOut
 from app.schemas.run import RunSummary
 from app.synthetic.generator import FailureMode, generate_batch
 
@@ -49,3 +50,14 @@ async def get_run(run_id: int, db: AsyncSession = Depends(get_db)):
     if run is None:
         raise HTTPException(status_code=404, detail="Run not found")
     return run
+
+
+@router.get("/{run_id}/audit", response_model=list[AuditEntryOut])
+async def get_run_audit(run_id: int, db: AsyncSession = Depends(get_db)):
+    run = await db.get(Run, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    result = await db.execute(
+        select(AuditEntry).where(AuditEntry.run_id == run_id).order_by(AuditEntry.row_identifier, AuditEntry.id)
+    )
+    return result.scalars().all()

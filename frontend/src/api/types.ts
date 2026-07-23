@@ -33,6 +33,19 @@ export interface QuarantineRow {
   created_at: string;
 }
 
+export interface AuditEntry {
+  id: number;
+  run_id: number;
+  row_identifier: string;
+  hypothesis: string | null;
+  transform_chosen: string | null;
+  confidence: number | null;
+  reasoning: string | null;
+  diagnosis_source: string;
+  outcome: string;
+  created_at: string;
+}
+
 export interface HealRatePoint {
   run_id: number;
   started_at: string;

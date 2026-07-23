@@ -1,4 +1,4 @@
-import type { QuarantineRow, RunSummary, StatsOut, TriggerRunParams } from "./types";
+import type { AuditEntry, QuarantineRow, RunSummary, StatsOut, TriggerRunParams } from "./types";
 
 const BASE_URL = "/api";
 
@@ -24,6 +24,10 @@ export function listRuns(limit = 50): Promise<RunSummary[]> {
 
 export function getRun(id: number): Promise<RunSummary> {
   return apiGet(`/runs/${id}`);
+}
+
+export function getRunAudit(id: number): Promise<AuditEntry[]> {
+  return apiGet(`/runs/${id}/audit`);
 }
 
 export function triggerRun(params: TriggerRunParams): Promise<RunSummary> {
