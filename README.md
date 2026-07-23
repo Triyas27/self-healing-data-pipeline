@@ -6,6 +6,20 @@ A system that ingests messy real-world order data, validates it against a define
 
 Full requirements: [Self-Healing-Pipeline-Requirements.docx](Self-Healing-Pipeline-Requirements.docx)
 
+## Screenshots
+
+**Dashboard** — heal rate over time, error/fix breakdown across every run, and recent run history:
+
+![Dashboard](docs/screenshots/dashboard.png)
+
+**Run detail** — the full per-row audit trail for a single run: what was diagnosed, what was tried, and why:
+
+![Run detail](docs/screenshots/run-detail.png)
+
+**Quarantine** — rows that couldn't be safely auto-repaired, held for human review:
+
+![Quarantine](docs/screenshots/quarantine.png)
+
 ## Stack
 
 - **Backend**: FastAPI, SQLAlchemy (SQLite by default, Postgres via config), Groq SDK
