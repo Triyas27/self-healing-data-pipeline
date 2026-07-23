@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pipeline.orchestrator import run_pipeline
 from app.db.session import get_db
 from app.models import AuditEntry, Run
 from app.schemas.audit import AuditEntryOut
-from app.schemas.run import RunSummary
+from app.schemas.run import RunPage, RunSummary
 from app.synthetic.generator import FailureMode, generate_batch
 
 router = APIRouter(prefix="/runs", tags=["runs"])
@@ -38,10 +38,15 @@ async def trigger_run(
     return run
 
 
-@router.get("", response_model=list[RunSummary])
-async def list_runs(limit: int = Query(50, ge=1, le=500), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Run).order_by(Run.id.desc()).limit(limit))
-    return result.scalars().all()
+@router.get("", response_model=RunPage)
+async def list_runs(
+    limit: int = Query(20, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+):
+    total = await db.scalar(select(func.count()).select_from(Run))
+    result = await db.execute(select(Run).order_by(Run.id.desc()).limit(limit).offset(offset))
+    return RunPage(items=list(result.scalars().all()), total=total or 0)
 
 
 @router.get("/{run_id}", response_model=RunSummary)

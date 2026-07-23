@@ -96,11 +96,33 @@ def test_list_and_get_run(client):
 
     list_resp = client.get("/runs")
     assert list_resp.status_code == 200
-    assert any(r["id"] == run_id for r in list_resp.json())
+    page = list_resp.json()
+    assert page["total"] == 1
+    assert any(r["id"] == run_id for r in page["items"])
 
     get_resp = client.get(f"/runs/{run_id}")
     assert get_resp.status_code == 200
     assert get_resp.json()["id"] == run_id
+
+
+def test_runs_pagination(client):
+    ids = []
+    for i in range(5):
+        resp = client.post(
+            "/runs/trigger", params={"row_count": 1, "failure_rate": 0.0, "seed": i, "use_llm": False}
+        )
+        ids.append(resp.json()["id"])
+    newest_first = list(reversed(ids))
+
+    page1 = client.get("/runs", params={"limit": 2, "offset": 0}).json()
+    assert page1["total"] == 5
+    assert [r["id"] for r in page1["items"]] == newest_first[0:2]
+
+    page2 = client.get("/runs", params={"limit": 2, "offset": 2}).json()
+    assert page2["total"] == 5
+    assert [r["id"] for r in page2["items"]] == newest_first[2:4]
+
+    assert {r["id"] for r in page1["items"]} & {r["id"] for r in page2["items"]} == set()
 
 
 def test_get_run_audit_trail(client):
@@ -151,7 +173,9 @@ def test_quarantine_list_and_resolve_flow(client):
 
     list_resp = client.get("/quarantine", params={"run_id": run_id})
     assert list_resp.status_code == 200
-    rows = list_resp.json()
+    page = list_resp.json()
+    assert page["total"] == 5
+    rows = page["items"]
     assert len(rows) == 5
     assert all(r["resolved"] is False for r in rows)
 
@@ -165,7 +189,38 @@ def test_quarantine_list_and_resolve_flow(client):
     assert resolve_resp.json()["resolved"] is True
 
     unresolved_resp = client.get("/quarantine", params={"run_id": run_id, "resolved": False})
-    assert len(unresolved_resp.json()) == 4
+    unresolved_page = unresolved_resp.json()
+    assert unresolved_page["total"] == 4
+    assert len(unresolved_page["items"]) == 4
+
+
+def test_quarantine_pagination(client):
+    trigger_resp = client.post(
+        "/runs/trigger",
+        params={
+            "row_count": 5,
+            "failure_rate": 1.0,
+            "failure_mode": "invalid_foreign_key",
+            "seed": 1,
+            "use_llm": False,
+        },
+    )
+    run_id = trigger_resp.json()["id"]
+
+    page1 = client.get("/quarantine", params={"run_id": run_id, "limit": 2, "offset": 0}).json()
+    assert page1["total"] == 5
+    assert len(page1["items"]) == 2
+
+    page2 = client.get("/quarantine", params={"run_id": run_id, "limit": 2, "offset": 2}).json()
+    assert page2["total"] == 5
+    assert len(page2["items"]) == 2
+
+    page3 = client.get("/quarantine", params={"run_id": run_id, "limit": 2, "offset": 4}).json()
+    assert page3["total"] == 5
+    assert len(page3["items"]) == 1
+
+    ids_seen = {r["id"] for p in (page1, page2, page3) for r in p["items"]}
+    assert len(ids_seen) == 5
 
 
 def test_resolve_missing_quarantine_row_404(client):

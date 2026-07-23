@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pipeline.repair.repair import RepairOutcome
@@ -59,14 +59,29 @@ async def resolve_quarantine_row(db: AsyncSession, quarantine_row_id: int) -> Qu
     return quarantine_row
 
 
-async def list_quarantine_rows(
-    db: AsyncSession, run_id: int | None = None, resolved: bool | None = None
-) -> list[QuarantineRow]:
-    query = select(QuarantineRow)
+def _quarantine_filters(query, run_id: int | None, resolved: bool | None):
     if run_id is not None:
         query = query.where(QuarantineRow.run_id == run_id)
     if resolved is not None:
         query = query.where(QuarantineRow.resolved == resolved)
-    query = query.order_by(QuarantineRow.created_at.desc())
+    return query
+
+
+async def list_quarantine_rows(
+    db: AsyncSession,
+    run_id: int | None = None,
+    resolved: bool | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[QuarantineRow]:
+    query = _quarantine_filters(select(QuarantineRow), run_id, resolved)
+    query = query.order_by(QuarantineRow.created_at.desc()).offset(offset)
+    if limit is not None:
+        query = query.limit(limit)
     result = await db.execute(query)
     return list(result.scalars().all())
+
+
+async def count_quarantine_rows(db: AsyncSession, run_id: int | None = None, resolved: bool | None = None) -> int:
+    query = _quarantine_filters(select(func.count()).select_from(QuarantineRow), run_id, resolved)
+    return await db.scalar(query) or 0

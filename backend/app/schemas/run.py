@@ -17,3 +17,8 @@ class RunSummary(BaseModel):
     fixes_applied: dict[str, int]
     avg_time_to_heal_ms: float | None
     status: str
+
+
+class RunPage(BaseModel):
+    items: list[RunSummary]
+    total: int

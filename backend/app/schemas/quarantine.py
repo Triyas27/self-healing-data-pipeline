@@ -15,3 +15,8 @@ class QuarantineRowOut(BaseModel):
     diagnosis_history: list[dict]
     resolved: bool
     created_at: datetime
+
+
+class QuarantineRowPage(BaseModel):
+    items: list[QuarantineRowOut]
+    total: int

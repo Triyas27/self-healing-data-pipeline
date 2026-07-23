@@ -30,11 +30,14 @@ export default function RunDetail() {
   const [run, setRun] = useState<RunSummary | null>(null);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [quarantineRows, setQuarantineRows] = useState<QuarantineRow[]>([]);
+  const [quarantineTotal, setQuarantineTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
   async function refreshQuarantine() {
-    setQuarantineRows(await listQuarantine({ run_id: runId }));
+    const page = await listQuarantine({ run_id: runId, limit: 500 });
+    setQuarantineRows(page.items);
+    setQuarantineTotal(page.total);
   }
 
   useEffect(() => {
@@ -155,7 +158,14 @@ export default function RunDetail() {
         {quarantineRows.length === 0 ? (
           <div className="empty-state">No quarantined rows from this run.</div>
         ) : (
-          <QuarantineTable rows={quarantineRows} onResolve={handleResolve} />
+          <>
+            <QuarantineTable rows={quarantineRows} onResolve={handleResolve} />
+            {quarantineTotal > quarantineRows.length && (
+              <div className="muted" style={{ marginTop: 12 }}>
+                Showing {quarantineRows.length} of {quarantineTotal} quarantined rows.
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

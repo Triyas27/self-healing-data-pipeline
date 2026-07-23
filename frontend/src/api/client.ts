@@ -1,4 +1,4 @@
-import type { AuditEntry, QuarantineRow, RunSummary, StatsOut, TriggerRunParams } from "./types";
+import type { AuditEntry, Page, QuarantineRow, RunSummary, StatsOut, TriggerRunParams } from "./types";
 
 const BASE_URL = "/api";
 
@@ -18,8 +18,8 @@ export function getStats(): Promise<StatsOut> {
   return apiGet("/stats");
 }
 
-export function listRuns(limit = 50): Promise<RunSummary[]> {
-  return apiGet(`/runs?limit=${limit}`);
+export function listRuns(limit = 20, offset = 0): Promise<Page<RunSummary>> {
+  return apiGet(`/runs?limit=${limit}&offset=${offset}`);
 }
 
 export function getRun(id: number): Promise<RunSummary> {
@@ -58,10 +58,14 @@ export async function triggerRunFromFile(file: File, useLlm?: boolean): Promise<
   return res.json();
 }
 
-export function listQuarantine(filters: { run_id?: number; resolved?: boolean } = {}): Promise<QuarantineRow[]> {
+export function listQuarantine(
+  filters: { run_id?: number; resolved?: boolean; limit?: number; offset?: number } = {}
+): Promise<Page<QuarantineRow>> {
   const search = new URLSearchParams();
   if (filters.run_id !== undefined) search.set("run_id", String(filters.run_id));
   if (filters.resolved !== undefined) search.set("resolved", String(filters.resolved));
+  if (filters.limit !== undefined) search.set("limit", String(filters.limit));
+  if (filters.offset !== undefined) search.set("offset", String(filters.offset));
   const qs = search.toString();
   return apiGet(`/quarantine${qs ? `?${qs}` : ""}`);
 }

@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import ErrorBreakdownChart from "../components/ErrorBreakdownChart";
 import HealRateChart from "../components/HealRateChart";
+import Pager from "../components/Pager";
 import RunsTable from "../components/RunsTable";
 import StatTile from "../components/StatTile";
 import TriggerRunForm from "../components/TriggerRunForm";
 import { getStats, listRuns } from "../api/client";
 import type { RunSummary, StatsOut } from "../api/types";
+
+const RUNS_PAGE_SIZE = 10;
 
 function pct(value: number): string {
   return `${Math.round(value * 1000) / 10}%`;
@@ -14,18 +17,27 @@ function pct(value: number): string {
 export default function Dashboard() {
   const [stats, setStats] = useState<StatsOut | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);
+  const [runsTotal, setRunsTotal] = useState(0);
+  const [runsOffset, setRunsOffset] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  async function refresh() {
-    const [statsData, runsData] = await Promise.all([getStats(), listRuns(20)]);
+  async function refresh(offset: number) {
+    const [statsData, runsPage] = await Promise.all([getStats(), listRuns(RUNS_PAGE_SIZE, offset)]);
     setStats(statsData);
-    setRuns(runsData);
+    setRuns(runsPage.items);
+    setRunsTotal(runsPage.total);
     setLoading(false);
   }
 
   useEffect(() => {
-    refresh();
-  }, []);
+    refresh(runsOffset);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runsOffset]);
+
+  function handleRunComplete() {
+    setRunsOffset(0);
+    refresh(0);
+  }
 
   return (
     <div>
@@ -51,12 +63,13 @@ export default function Dashboard() {
 
       <div className="panel">
         <h2>Trigger a run</h2>
-        <TriggerRunForm onRunComplete={refresh} />
+        <TriggerRunForm onRunComplete={handleRunComplete} />
       </div>
 
       <div className="panel">
         <h2>Recent runs</h2>
         <RunsTable runs={runs} />
+        <Pager total={runsTotal} limit={RUNS_PAGE_SIZE} offset={runsOffset} onOffsetChange={setRunsOffset} />
       </div>
     </div>
   );

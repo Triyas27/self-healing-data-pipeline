@@ -46,6 +46,11 @@ export interface AuditEntry {
   created_at: string;
 }
 
+export interface Page<T> {
+  items: T[];
+  total: number;
+}
+
 export interface HealRatePoint {
   run_id: number;
   started_at: string;

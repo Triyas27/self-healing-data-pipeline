@@ -218,6 +218,15 @@ button.secondary {
   margin-bottom: 16px;
 }
 
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+
 .filters button {
   background: var(--surface-2);
   border-color: var(--border);

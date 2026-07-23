@@ -76,7 +76,7 @@ describe("RunDetail", () => {
     vi.clearAllMocks();
     vi.mocked(client.getRun).mockResolvedValue(RUN);
     vi.mocked(client.getRunAudit).mockResolvedValue(AUDIT);
-    vi.mocked(client.listQuarantine).mockResolvedValue([QUARANTINE_ROW]);
+    vi.mocked(client.listQuarantine).mockResolvedValue({ items: [QUARANTINE_ROW], total: 1 });
     vi.mocked(client.resolveQuarantineRow).mockResolvedValue({ ...QUARANTINE_ROW, resolved: true });
   });
 
@@ -100,6 +100,13 @@ describe("RunDetail", () => {
 
     await waitFor(() => expect(client.resolveQuarantineRow).toHaveBeenCalledWith(48));
     expect(client.listQuarantine).toHaveBeenCalledTimes(2);
+  });
+
+  it("notes when the quarantine list is truncated", async () => {
+    vi.mocked(client.listQuarantine).mockResolvedValue({ items: [QUARANTINE_ROW], total: 823 });
+    renderPage();
+
+    expect(await screen.findByText("Showing 1 of 823 quarantined rows.")).toBeInTheDocument();
   });
 
   it("shows a not-found state when the run doesn't exist", async () => {
