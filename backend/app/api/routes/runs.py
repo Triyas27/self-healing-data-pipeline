@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +10,8 @@ from app.models import AuditEntry, Run
 from app.schemas.audit import AuditEntryOut
 from app.schemas.run import RunPage, RunSummary
 from app.synthetic.generator import FailureMode, generate_batch
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
@@ -32,8 +36,16 @@ async def trigger_run(
 
     try:
         run = await run_pipeline(db, source, use_llm=use_llm)
+    except ValueError as exc:
+        # Deliberately raised by the pipeline for a specific, actionable
+        # reason (e.g. the upload-row cap) -- safe and useful to show as-is.
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"Failed to process batch: {exc}") from exc
+        # Anything else is an unexpected internal failure. Log the real
+        # exception server-side but don't echo its text to the client --
+        # it could contain implementation details that shouldn't leak.
+        logger.exception("Unexpected error processing batch")
+        raise HTTPException(status_code=422, detail="Failed to process batch.") from exc
 
     return run
 

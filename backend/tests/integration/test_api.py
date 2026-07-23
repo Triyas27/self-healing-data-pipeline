@@ -5,6 +5,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
+import app.api.routes.runs as runs_module
+from app.config import settings
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
@@ -86,6 +88,28 @@ def test_trigger_run_with_csv_upload(client):
     data = resp.json()
     assert data["row_count"] == 1
     assert data["clean_first_pass"] == 1
+
+
+def test_trigger_run_over_upload_cap_shows_specific_message(client, monkeypatch):
+    monkeypatch.setattr(settings, "max_upload_rows", 3)
+
+    resp = client.post("/runs/trigger", params={"row_count": 5, "failure_rate": 0.0, "seed": 1, "use_llm": False})
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Batch has 5 rows, exceeding the 3-row upload cap"
+
+
+def test_trigger_run_unexpected_error_does_not_leak_exception_text(client, monkeypatch):
+    async def _boom(*args, **kwargs):
+        raise RuntimeError("psycopg2.OperationalError: password authentication failed for user 'admin'")
+
+    monkeypatch.setattr(runs_module, "run_pipeline", _boom)
+
+    resp = client.post("/runs/trigger", params={"row_count": 5, "failure_rate": 0.0, "seed": 1, "use_llm": False})
+    assert resp.status_code == 422
+    detail = resp.json()["detail"]
+    assert detail == "Failed to process batch."
+    assert "psycopg2" not in detail
+    assert "admin" not in detail
 
 
 def test_list_and_get_run(client):
