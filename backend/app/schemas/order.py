@@ -31,7 +31,7 @@ class OrderIn(BaseModel):
     order_id: str
     customer_id: str
     order_date: date
-    amount: Decimal = Field(gt=0)
+    amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
     currency: Currency
     status: OrderStatus
 

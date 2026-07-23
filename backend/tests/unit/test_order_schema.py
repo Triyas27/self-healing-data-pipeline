@@ -28,6 +28,7 @@ def test_valid_row_passes():
         ("order_date", "not-a-date"),
         ("amount", "-5.00"),
         ("amount", "0"),
+        ("amount", "49.123"),
         ("currency", "ZZZ"),
         ("status", "unknown"),
     ],
@@ -36,3 +37,12 @@ def test_invalid_row_rejected(field, value):
     row = {**BASE_ROW, field: value}
     with pytest.raises(ValidationError):
         OrderIn.model_validate(row)
+
+
+def test_amount_rejects_more_than_two_decimal_places():
+    row = {**BASE_ROW, "amount": "49.123"}
+    with pytest.raises(ValidationError) as exc_info:
+        OrderIn.model_validate(row)
+    errors = exc_info.value.errors()
+    assert errors[0]["type"] == "decimal_max_places"
+    assert errors[0]["loc"] == ("amount",)

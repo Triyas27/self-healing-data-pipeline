@@ -28,6 +28,24 @@ async def test_healed_when_amount_has_currency_noise():
     assert len(outcome.attempts) == 1
 
 
+async def test_quarantined_not_rounded_when_amount_has_excess_decimal_places():
+    row = {
+        "order_id": "ORD-000001",
+        "customer_id": "CUST-0001",
+        "order_date": "2026-01-01",
+        "amount": "49.123",
+        "currency": "USD",
+        "status": "pending",
+    }
+    result = validate_batch([row], set(known_customer_ids())).results[0]
+    assert not result.valid
+    assert result.error_type == "invalid_amount"
+
+    outcome = await repair_row(result, set(known_customer_ids()), max_attempts=3, use_llm=False)
+    assert outcome.healed is False
+    assert outcome.quarantine_reason == "no_fix"
+
+
 async def test_healed_for_date_format_swap():
     result = _failing_result(FailureMode.DATE_FORMAT_SWAP)
     outcome = await repair_row(result, set(known_customer_ids()), max_attempts=3, use_llm=False)
