@@ -5,7 +5,6 @@ aiosqlite
 pydantic
 pydantic-settings
 groq
-alembic
 python-multipart
 httpx
 
