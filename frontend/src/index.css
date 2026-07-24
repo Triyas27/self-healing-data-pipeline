@@ -64,7 +64,7 @@ a {
 
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -93,6 +93,7 @@ a {
   border-radius: 10px;
   padding: 20px;
   margin-bottom: 24px;
+  overflow-x: auto;
 }
 
 .panel h2 {
@@ -274,6 +275,10 @@ button.secondary {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
+}
+
+.detail-columns > div {
+  min-width: 0;
 }
 
 .detail-link {
