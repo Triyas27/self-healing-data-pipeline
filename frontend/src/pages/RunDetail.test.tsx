@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import RunDetail from "./RunDetail";
+import { ToastProvider } from "../components/Toast";
 import * as client from "../api/client";
 import type { AuditEntry, QuarantineRow, RunSummary } from "../api/types";
 
@@ -64,9 +65,11 @@ const QUARANTINE_ROW: QuarantineRow = {
 function renderPage(runId = "7") {
   return render(
     <MemoryRouter initialEntries={[`/runs/${runId}`]}>
-      <Routes>
-        <Route path="/runs/:id" element={<RunDetail />} />
-      </Routes>
+      <ToastProvider>
+        <Routes>
+          <Route path="/runs/:id" element={<RunDetail />} />
+        </Routes>
+      </ToastProvider>
     </MemoryRouter>
   );
 }
@@ -100,6 +103,21 @@ describe("RunDetail", () => {
 
     await waitFor(() => expect(client.resolveQuarantineRow).toHaveBeenCalledWith(48));
     expect(client.listQuarantine).toHaveBeenCalledTimes(2);
+    expect(await screen.findByText("Row #48 resolved.")).toBeInTheDocument();
+  });
+
+  it("shows an error toast instead of failing silently when resolving fails", async () => {
+    vi.mocked(client.resolveQuarantineRow).mockRejectedValue(
+      new Error("POST /quarantine/48/resolve failed: 500")
+    );
+    renderPage();
+    await screen.findByText("Run #7");
+
+    const resolveButton = await screen.findByRole("button", { name: "Resolve" });
+    await userEvent.click(resolveButton);
+
+    expect(await screen.findByText("POST /quarantine/48/resolve failed: 500")).toBeInTheDocument();
+    expect(client.listQuarantine).toHaveBeenCalledTimes(1);
   });
 
   it("notes when the quarantine list is truncated", async () => {

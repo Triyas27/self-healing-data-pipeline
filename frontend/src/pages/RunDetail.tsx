@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import ChipList from "../components/ChipList";
 import QuarantineTable from "../components/QuarantineTable";
 import StatTile from "../components/StatTile";
+import { useToast } from "../components/Toast";
 import { getRun, getRunAudit, listQuarantine, resolveQuarantineRow } from "../api/client";
 import type { AuditEntry, QuarantineRow, RunSummary } from "../api/types";
 import { formatHealTime, humanizeLabel } from "../utils/labels";
@@ -33,6 +34,7 @@ export default function RunDetail() {
   const [quarantineTotal, setQuarantineTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const { showSuccess, showError } = useToast();
 
   async function refreshQuarantine() {
     const page = await listQuarantine({ run_id: runId, limit: 500 });
@@ -60,8 +62,13 @@ export default function RunDetail() {
   }, [runId]);
 
   async function handleResolve(quarantineId: number) {
-    await resolveQuarantineRow(quarantineId);
-    await refreshQuarantine();
+    try {
+      await resolveQuarantineRow(quarantineId);
+      showSuccess(`Row #${quarantineId} resolved.`);
+      await refreshQuarantine();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : `Failed to resolve row #${quarantineId}.`);
+    }
   }
 
   if (loading) {

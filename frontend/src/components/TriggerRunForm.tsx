@@ -1,4 +1,5 @@
 import { useRef, useState, type FormEvent } from "react";
+import { useToast } from "./Toast";
 import { triggerRun, triggerRunFromFile } from "../api/client";
 import { FAILURE_MODES, type FailureMode, type RunSummary } from "../api/types";
 
@@ -17,6 +18,7 @@ export default function TriggerRunForm({ onRunComplete }: TriggerRunFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { showSuccess } = useToast();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -33,6 +35,7 @@ export default function TriggerRunForm({ onRunComplete }: TriggerRunFormProps) {
               use_llm: false,
             });
       onRunComplete(run);
+      showSuccess(`Run #${run.id} triggered — ${run.row_count} rows processed.`);
       if (mode === "upload") {
         setFile(null);
         if (fileInputRef.current) fileInputRef.current.value = "";

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Pager from "../components/Pager";
 import QuarantineTable from "../components/QuarantineTable";
+import { useToast } from "../components/Toast";
 import { listQuarantine, resolveQuarantineRow } from "../api/client";
 import type { QuarantineRow } from "../api/types";
 
@@ -14,6 +15,7 @@ export default function Quarantine() {
   const [filter, setFilter] = useState<Filter>("unresolved");
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
+  const { showSuccess, showError } = useToast();
 
   async function refresh(currentFilter: Filter, currentOffset: number) {
     setLoading(true);
@@ -35,8 +37,13 @@ export default function Quarantine() {
   }
 
   async function handleResolve(id: number) {
-    await resolveQuarantineRow(id);
-    refresh(filter, offset);
+    try {
+      await resolveQuarantineRow(id);
+      showSuccess(`Row #${id} resolved.`);
+      refresh(filter, offset);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : `Failed to resolve row #${id}.`);
+    }
   }
 
   return (

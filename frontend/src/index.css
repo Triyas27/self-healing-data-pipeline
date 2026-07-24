@@ -353,3 +353,34 @@ button.secondary {
   font-size: 13px;
   margin-bottom: 16px;
 }
+
+.toast-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 1000;
+  max-width: 360px;
+}
+
+.toast {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.toast-success {
+  background: rgba(62, 207, 142, 0.15);
+  border: 1px solid var(--green);
+  color: var(--green);
+}
+
+.toast-error {
+  background: rgba(227, 93, 93, 0.15);
+  border: 1px solid var(--red);
+  color: var(--red);
+}
