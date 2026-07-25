@@ -132,7 +132,7 @@ export default function RunDetail() {
       <div className="panel">
         <h2>Audit trail</h2>
         {rowGroups.length === 0 ? (
-          <div className="empty-state">Every row in this run validated cleanly — nothing to diagnose.</div>
+          <div className="empty-state">Every row in this run validated cleanly. Nothing to diagnose.</div>
         ) : (
           rowGroups.map(([rowIdentifier, attempts]) => (
             <div key={rowIdentifier} style={{ marginBottom: 20 }}>

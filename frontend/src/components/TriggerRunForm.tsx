@@ -36,7 +36,7 @@ export default function TriggerRunForm({ onRunComplete }: TriggerRunFormProps) {
               use_llm: useLlm,
             });
       onRunComplete(run);
-      showSuccess(`Run #${run.id} triggered — ${run.row_count} rows processed.`);
+      showSuccess(`Run #${run.id} triggered (${run.row_count} rows processed).`);
       if (mode === "upload") {
         setFile(null);
         if (fileInputRef.current) fileInputRef.current.value = "";

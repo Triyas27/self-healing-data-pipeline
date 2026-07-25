@@ -15,7 +15,7 @@ All config (DB connection, LLM credentials, repair attempt caps, alerting endpoi
 
 Generates batches of fake orders with a configurable row count and failure rate. Can also inject one specific failure mode in isolation (schema drift, type mismatch, date format swap, encoding issue, null required field, invalid FK) so you can test one failure class at a time instead of random noise.
 
-Order IDs are always numbered from 1 within a batch, so triggering several runs by hand against the same database will make later runs increasingly show up as `duplicate_order_id` — that's the pipeline's real duplicate-detection working correctly, not a bug in the generator. `scripts/seed_demo.py` accounts for this by growing each run's row count so the effect stays a minor part of the data instead of dominating it.
+Order IDs are always numbered from 1 within a batch, so triggering several runs by hand against the same database will make later runs increasingly show up as `duplicate_order_id`. That's the pipeline's real duplicate-detection working correctly, not a bug in the generator. `scripts/seed_demo.py` accounts for this by growing each run's row count so the effect stays a minor part of the data instead of dominating it.
 
 ## Ingestion & validation
 `backend/app/core/pipeline/ingestion.py`, `validation.py`
@@ -63,5 +63,5 @@ Everything runs without network access or an API key. The LLM diagnoser is teste
 
 ## Known limitations
 
-- **No authentication.** Every API route is open — there's no login, API key, or session. This is a deliberate scope cut, not an oversight: the project has no real users or hosted deployment, so account management would be boilerplate that doesn't demonstrate anything the pipeline itself doesn't already cover. A single shared API key behind a FastAPI dependency would be the minimal fix if this ever needed to run somewhere reachable by more than one person.
+- **No authentication.** Every API route is open: there's no login, API key, or session. This is a deliberate scope cut, not an oversight: the project has no real users or hosted deployment, so account management would be boilerplate that doesn't demonstrate anything the pipeline itself doesn't already cover. A single shared API key behind a FastAPI dependency would be the minimal fix if this ever needed to run somewhere reachable by more than one person.
 - **Both Docker containers run as root.** Neither `backend/Dockerfile` nor `frontend/Dockerfile` creates or switches to an unprivileged user, so the process inside each container has root privileges within the container. Same reasoning as auth: these images only ever run locally via `docker-compose` for a demo, never on shared or internet-facing infrastructure, so the actual blast radius of skipping this is zero right now. The fix is a few lines per Dockerfile (`useradd` + `USER` in the backend image, and nginx's own unprivileged mode or a non-root base in the frontend image) if this ever needed to run somewhere that mattered.

@@ -74,7 +74,7 @@ describe("TriggerRunForm", () => {
       })
     );
     expect(onRunComplete).toHaveBeenCalledWith(RUN);
-    expect(await screen.findByText("Run #9 triggered — 50 rows processed.")).toBeInTheDocument();
+    expect(await screen.findByText("Run #9 triggered (50 rows processed).")).toBeInTheDocument();
   });
 
   it("defaults the LLM toggle to off, and checking it passes use_llm through", async () => {

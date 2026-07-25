@@ -8,15 +8,15 @@ Full requirements: [Self-Healing-Pipeline-Requirements.docx](Self-Healing-Pipeli
 
 ## Screenshots
 
-**Dashboard** — heal rate over time, error/fix breakdown across every run, and recent run history:
+**Dashboard**: heal rate over time, error/fix breakdown across every run, and recent run history.
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
-**Run detail** — the full per-row audit trail for a single run: what was diagnosed, what was tried, and why:
+**Run detail**: the full per-row audit trail for a single run, what was diagnosed, what was tried, and why.
 
 ![Run detail](docs/screenshots/run-detail.png)
 
-**Quarantine** — rows that couldn't be safely auto-repaired, held for human review:
+**Quarantine**: rows that couldn't be safely auto-repaired, held for human review.
 
 ![Quarantine](docs/screenshots/quarantine.png)
 
@@ -60,7 +60,7 @@ cd backend
 python -m scripts.seed_demo
 ```
 
-It's safe to run once against a fresh database and refuses to touch anything if runs already exist — delete `backend/data/pipeline.db` first if you want to regenerate the demo data from scratch.
+It's safe to run once against a fresh database and refuses to touch anything if runs already exist. Delete `backend/data/pipeline.db` first if you want to regenerate the demo data from scratch.
 
 ### Docker
 
