@@ -53,6 +53,15 @@ npm install
 npm run dev
 ```
 
+The dashboard starts empty. To see it populated the way it looks in the screenshots above, seed a handful of varied demo runs:
+
+```bash
+cd backend
+python -m scripts.seed_demo
+```
+
+It's safe to run once against a fresh database and refuses to touch anything if runs already exist — delete `backend/data/pipeline.db` first if you want to regenerate the demo data from scratch.
+
 ## License
 
 [MIT](LICENSE)
