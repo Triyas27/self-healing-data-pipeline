@@ -62,6 +62,19 @@ python -m scripts.seed_demo
 
 It's safe to run once against a fresh database and refuses to touch anything if runs already exist — delete `backend/data/pipeline.db` first if you want to regenerate the demo data from scratch.
 
+### Docker
+
+```bash
+cp backend/.env.example backend/.env
+docker-compose up --build
+```
+
+Backend on `:8000`, frontend on `:5173`. Seed demo data the same way as above, just run it inside the backend container instead:
+
+```bash
+docker-compose exec backend python -m scripts.seed_demo
+```
+
 ## License
 
 [MIT](LICENSE)

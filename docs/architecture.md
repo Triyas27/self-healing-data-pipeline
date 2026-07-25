@@ -15,6 +15,8 @@ All config (DB connection, LLM credentials, repair attempt caps, alerting endpoi
 
 Generates batches of fake orders with a configurable row count and failure rate. Can also inject one specific failure mode in isolation (schema drift, type mismatch, date format swap, encoding issue, null required field, invalid FK) so you can test one failure class at a time instead of random noise.
 
+Order IDs are always numbered from 1 within a batch, so triggering several runs by hand against the same database will make later runs increasingly show up as `duplicate_order_id` — that's the pipeline's real duplicate-detection working correctly, not a bug in the generator. `scripts/seed_demo.py` accounts for this by growing each run's row count so the effect stays a minor part of the data instead of dominating it.
+
 ## Ingestion & validation
 `backend/app/core/pipeline/ingestion.py`, `validation.py`
 
