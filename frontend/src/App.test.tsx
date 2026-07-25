@@ -13,7 +13,7 @@ vi.mock("./pages/Quarantine", () => ({ default: () => <div>quarantine page conte
 vi.mock("./pages/RunDetail", () => ({ default: () => null }));
 
 describe("App error containment", () => {
-  it("keeps the nav usable when a page crashes instead of blanking the whole app", () => {
+  it("keeps the nav usable when a page crashes instead of blanking the whole app", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     render(
@@ -24,7 +24,7 @@ describe("App error containment", () => {
 
     expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Quarantine" })).toBeInTheDocument();
-    expect(screen.getByText("Something went wrong loading this page.")).toBeInTheDocument();
+    expect(await screen.findByText("Something went wrong loading this page.")).toBeInTheDocument();
     spy.mockRestore();
   });
 
@@ -37,11 +37,11 @@ describe("App error containment", () => {
         <App />
       </MemoryRouter>
     );
-    expect(screen.getByText("Something went wrong loading this page.")).toBeInTheDocument();
+    expect(await screen.findByText("Something went wrong loading this page.")).toBeInTheDocument();
 
     await user.click(screen.getByRole("link", { name: "Quarantine" }));
 
-    expect(screen.getByText("quarantine page content")).toBeInTheDocument();
+    expect(await screen.findByText("quarantine page content")).toBeInTheDocument();
     expect(screen.queryByText("Something went wrong loading this page.")).not.toBeInTheDocument();
     spy.mockRestore();
   });
