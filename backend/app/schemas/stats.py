@@ -5,6 +5,7 @@ class HealRatePoint(BaseModel):
     run_id: int
     started_at: str
     heal_rate: float
+    row_count: int
 
 
 class StatsOut(BaseModel):

@@ -36,6 +36,7 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
             run_id=r.id,
             started_at=r.started_at.isoformat(),
             heal_rate=(r.clean_first_pass + r.healed) / r.row_count if r.row_count else 0.0,
+            row_count=r.row_count,
         )
         for r in runs
     ]

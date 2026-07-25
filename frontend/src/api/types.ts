@@ -55,6 +55,7 @@ export interface HealRatePoint {
   run_id: number;
   started_at: string;
   heal_rate: number;
+  row_count: number;
 }
 
 export interface StatsOut {

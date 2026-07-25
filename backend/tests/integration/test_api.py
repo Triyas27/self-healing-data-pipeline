@@ -273,3 +273,4 @@ def test_stats_endpoint_reflects_runs(client):
     assert data["total_quarantined"] == 5
     assert len(data["heal_rate_over_time"]) == 2
     assert data["error_type_totals"] == {"invalid_foreign_key": 5}
+    assert [p["row_count"] for p in data["heal_rate_over_time"]] == [10, 5]
