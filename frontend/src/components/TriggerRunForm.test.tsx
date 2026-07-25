@@ -77,6 +77,26 @@ describe("TriggerRunForm", () => {
     expect(await screen.findByText("Run #9 triggered — 50 rows processed.")).toBeInTheDocument();
   });
 
+  it("defaults the LLM toggle to off, and checking it passes use_llm through", async () => {
+    vi.mocked(client.triggerRun).mockResolvedValue(RUN);
+    const user = userEvent.setup();
+    renderForm();
+
+    const llmToggle = screen.getByRole("checkbox", { name: /use llm diagnosis/i });
+    expect(llmToggle).not.toBeChecked();
+
+    await user.click(llmToggle);
+    expect(llmToggle).toBeChecked();
+
+    await user.click(screen.getByRole("button", { name: "Trigger run" }));
+
+    await waitFor(() =>
+      expect(client.triggerRun).toHaveBeenCalledWith(
+        expect.objectContaining({ use_llm: true })
+      )
+    );
+  });
+
   it("shows an inline error banner instead of a toast when triggering fails", async () => {
     vi.mocked(client.triggerRun).mockRejectedValue(new Error("POST /runs/trigger failed: 500"));
     const user = userEvent.setup();

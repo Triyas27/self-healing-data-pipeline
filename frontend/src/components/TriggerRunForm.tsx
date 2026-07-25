@@ -15,6 +15,7 @@ export default function TriggerRunForm({ onRunComplete }: TriggerRunFormProps) {
   const [failureRate, setFailureRate] = useState(0.2);
   const [failureMode, setFailureMode] = useState<FailureMode | "">("");
   const [file, setFile] = useState<File | null>(null);
+  const [useLlm, setUseLlm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -27,12 +28,12 @@ export default function TriggerRunForm({ onRunComplete }: TriggerRunFormProps) {
     try {
       const run =
         mode === "upload" && file
-          ? await triggerRunFromFile(file, false)
+          ? await triggerRunFromFile(file, useLlm)
           : await triggerRun({
               row_count: rowCount,
               failure_rate: failureRate,
               failure_mode: failureMode || undefined,
-              use_llm: false,
+              use_llm: useLlm,
             });
       onRunComplete(run);
       showSuccess(`Run #${run.id} triggered — ${run.row_count} rows processed.`);
@@ -58,6 +59,12 @@ export default function TriggerRunForm({ onRunComplete }: TriggerRunFormProps) {
           Upload CSV
         </button>
       </div>
+
+      <label className="llm-toggle">
+        <input type="checkbox" checked={useLlm} onChange={(e) => setUseLlm(e.target.checked)} />
+        Use LLM diagnosis
+        <span className="muted"> (falls back to heuristic automatically if no Groq key is configured)</span>
+      </label>
 
       {mode === "synthetic" ? (
         <div className="form-row">

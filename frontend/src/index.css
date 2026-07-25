@@ -175,6 +175,19 @@ th {
   color: var(--text-muted);
 }
 
+.llm-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  margin-bottom: 16px;
+  cursor: pointer;
+}
+
+.llm-toggle input {
+  width: auto;
+}
+
 input,
 select,
 button {
