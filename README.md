@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/Triyas27/self-healing-data-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/Triyas27/self-healing-data-pipeline/actions/workflows/ci.yml)
 
+**Live demo**: [self-healing-pipeline-frontend.onrender.com](https://self-healing-pipeline-frontend.onrender.com). Free-tier hosting, so the backend may take a few seconds to wake up on the first request.
+
 A system that ingests messy real-world order data, validates it against a defined schema, and automatically diagnoses and repairs a fixed set of known failure classes before falling back to human-reviewed quarantine.
 
 Full requirements: [Self-Healing-Pipeline-Requirements.docx](Self-Healing-Pipeline-Requirements.docx)
