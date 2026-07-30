@@ -1,9 +1,9 @@
 # Architecture
 
 ## Config & deployment
-`backend/app/config.py`, `.env.example`, `Dockerfile`, `docker-compose.yml`
+`backend/app/config.py`, `.env.example`, `Dockerfile`, `docker-compose.yml`, `render.yaml`
 
-All config (DB connection, LLM credentials, repair attempt caps, alerting endpoints) comes from environment variables. SQLite by default, and switching to Postgres is just changing `DATABASE_URL`, no code changes needed.
+All config (DB connection, LLM credentials, repair attempt caps, alerting endpoints) comes from environment variables. SQLite by default, and switching to Postgres is just changing `DATABASE_URL`, no code changes needed. The backend's Docker CMD reads its port from `$PORT` with a fallback to 8000, since most host platforms (Render included) assign their own port rather than letting the container pick one. The frontend's API base URL is a build-time Vite env var (`VITE_API_BASE_URL`) that defaults to the same-origin relative path the local dev proxy and nginx reverse proxy both expect; a host with no such proxy in front of the frontend needs it set explicitly. See the README's Deploy section for the full Render setup.
 
 ## Data layer
 `backend/app/models/` (SQLAlchemy: orders, runs, quarantine, audit)

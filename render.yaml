@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: self-healing-pipeline-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite+aiosqlite:///./data/pipeline.db
+      - key: LLM_MODEL
+        value: llama-3.3-70b-versatile
+      - key: MAX_REPAIR_ATTEMPTS
+        value: "3"
+      - key: MAX_CONCURRENT_DIAGNOSES
+        value: "8"
+      - key: MAX_UPLOAD_ROWS
+        value: "10000"
+      # Set these two in the Render dashboard after the first deploy --
+      # GROQ_API_KEY from https://console.groq.com/keys (optional, falls
+      # back to heuristic diagnosis if unset), and CORS_ALLOWED_ORIGINS to
+      # the frontend service's actual onrender.com URL once you know it.
+      - key: GROQ_API_KEY
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+
+  - type: web
+    name: self-healing-pipeline-frontend
+    runtime: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      # Set to the backend service's actual onrender.com URL once you know
+      # it -- this has to be present at build time, Vite bakes it into the
+      # bundle, so changing it later means triggering a rebuild, not just a
+      # dashboard restart.
+      - key: VITE_API_BASE_URL
+        sync: false

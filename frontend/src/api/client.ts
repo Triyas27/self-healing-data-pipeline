@@ -1,6 +1,11 @@
 import type { AuditEntry, Page, QuarantineRow, RunSummary, StatsOut, TriggerRunParams } from "./types";
 
-const BASE_URL = "/api";
+// Defaults to a same-origin relative path, which is what the vite dev proxy
+// and the nginx reverse proxy (frontend/nginx.conf) both expect. A hosting
+// setup with no such proxy in front of the frontend -- e.g. Render's static
+// site hosting -- needs this baked in at build time to point at the
+// backend's actual URL instead.
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`);

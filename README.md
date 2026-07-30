@@ -24,7 +24,7 @@ Full requirements: [Self-Healing-Pipeline-Requirements.docx](Self-Healing-Pipeli
 
 - **Backend**: FastAPI, SQLAlchemy (SQLite by default, Postgres via config), Groq SDK
 - **Frontend**: React + Vite dashboard
-- **Deployment**: Docker / docker-compose
+- **Deployment**: Docker / docker-compose locally, Render (blueprint in `render.yaml`) for a hosted instance
 
 ## How it's put together
 
@@ -74,6 +74,18 @@ Backend on `:8000`, frontend on `:5173`. Seed demo data the same way as above, j
 ```bash
 docker-compose exec backend python -m scripts.seed_demo
 ```
+
+## Deploy
+
+`render.yaml` deploys both services on [Render](https://render.com)'s free tier (no credit card required): the backend as the same Docker image used locally, the frontend as a static build with its API URL baked in at build time.
+
+1. Push this repo to GitHub, then in Render: **New > Blueprint**, pick the repo. It creates both services from `render.yaml`.
+2. Once both are up, note their URLs (`https://self-healing-pipeline-backend.onrender.com` and the frontend's equivalent, unless those names were already taken).
+3. On the **backend** service, set `CORS_ALLOWED_ORIGINS` to the frontend's URL.
+4. On the **frontend** service, set `VITE_API_BASE_URL` to the backend's URL, then trigger a manual redeploy. Vite bakes this in at build time, so saving the env var alone doesn't apply it.
+5. Optionally set `GROQ_API_KEY` on the backend for real LLM diagnosis. Without it, everything still works via the heuristic fallback.
+
+Two things about the free tier worth knowing: the backend spins down after 15 minutes of inactivity, so the first request after a while takes a few extra seconds to wake it up, and the SQLite database resets on every redeploy since the free plan has no persistent disk. Re-seed with `python -m scripts.seed_demo` (via Render's shell, on the backend service) any time the dashboard looks empty after a redeploy.
 
 ## License
 
