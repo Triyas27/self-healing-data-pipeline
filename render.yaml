@@ -38,3 +38,13 @@ services:
       # dashboard restart.
       - key: VITE_API_BASE_URL
         sync: false
+    routes:
+      # React Router handles routes like /runs/3 entirely client-side, but
+      # Render's static file server doesn't know that -- without this
+      # rewrite, a direct link or a page refresh on any non-root path 404s
+      # before the JS ever loads to take over routing. Local dev (vite) and
+      # the docker-compose path (nginx.conf's try_files) both already do the
+      # same fallback, which is why this never showed up until now.
+      - type: rewrite
+        source: /*
+        destination: /index.html
