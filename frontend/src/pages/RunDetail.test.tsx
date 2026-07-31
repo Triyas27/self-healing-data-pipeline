@@ -13,16 +13,19 @@ const RUN: RunSummary = {
   id: 7,
   started_at: "2026-07-22T11:04:45.582246",
   finished_at: "2026-07-22T11:04:46.102938",
-  row_count: 3,
+  row_count: 4,
   clean_first_pass: 1,
   healed: 1,
-  quarantined: 1,
-  error_types: { invalid_amount: 1, invalid_foreign_key: 1 },
+  quarantined: 2,
+  error_types: { invalid_amount: 1, invalid_foreign_key: 2 },
   fixes_applied: { coerce_amount: 1 },
   avg_time_to_heal_ms: 0.3,
   status: "completed",
 };
 
+// Two of these (ORD-000003, ORD-000004) share the same outcome and transform
+// (no_fix / none) so the grouped audit trail should collapse them into a
+// single "2 rows" pattern instead of showing them as separate blocks.
 const AUDIT: AuditEntry[] = [
   {
     id: 1,
@@ -47,6 +50,18 @@ const AUDIT: AuditEntry[] = [
     diagnosis_source: "heuristic",
     outcome: "no_fix",
     created_at: "2026-07-22T11:04:45.7Z",
+  },
+  {
+    id: 3,
+    run_id: 7,
+    row_identifier: "ORD-000004",
+    hypothesis: "customer_id does not exist",
+    transform_chosen: null,
+    confidence: 1.0,
+    reasoning: "unresolvable foreign key has no safe automatic fix",
+    diagnosis_source: "heuristic",
+    outcome: "no_fix",
+    created_at: "2026-07-22T11:04:45.8Z",
   },
 ];
 
@@ -83,15 +98,39 @@ describe("RunDetail", () => {
     vi.mocked(client.resolveQuarantineRow).mockResolvedValue({ ...QUARANTINE_ROW, resolved: true });
   });
 
-  it("shows the run summary and per-row audit trail", async () => {
+  it("groups the audit trail by outcome/transform instead of listing every row", async () => {
     const { container } = renderPage();
 
     expect(await screen.findByText("Run #7")).toBeInTheDocument();
-    expect(screen.getByText("ORD-000002")).toBeInTheDocument();
-    expect(screen.getByText("ORD-000003")).toBeInTheDocument();
-    const badgeText = Array.from(container.querySelectorAll(".attempt .badge")).map((el) => el.textContent);
-    expect(badgeText).toEqual(["Healed", "No fix"]);
+
+    const headers = Array.from(container.querySelectorAll(".audit-group-header")).map((el) => el.textContent);
+    expect(headers).toEqual(["No fix 2 rows · heuristic", "Healed Coerce amount 1 row · heuristic"]);
+
+    // The sample hypothesis/reasoning for each group is visible up front...
     expect(screen.getByText("stripped a leading dollar sign")).toBeInTheDocument();
+    expect(screen.getByText("unresolvable foreign key has no safe automatic fix")).toBeInTheDocument();
+
+    // ...but individual row identifiers stay hidden until a group is expanded.
+    expect(screen.queryByText("ORD-000002")).not.toBeInTheDocument();
+    expect(screen.queryByText("ORD-000003")).not.toBeInTheDocument();
+    expect(screen.queryByText("ORD-000004")).not.toBeInTheDocument();
+  });
+
+  it("expands a group to reveal its individual rows without expanding the others", async () => {
+    const user = userEvent.setup();
+    const { container } = renderPage();
+    await screen.findByText("Run #7");
+
+    const headers = container.querySelectorAll(".audit-group-header");
+    const noFixHeader = Array.from(headers).find((el) => el.textContent?.includes("No fix"));
+    expect(noFixHeader).toBeTruthy();
+
+    await user.click(noFixHeader as Element);
+
+    expect(screen.getByText("ORD-000003")).toBeInTheDocument();
+    expect(screen.getByText("ORD-000004")).toBeInTheDocument();
+    // The healed group was never clicked, so it stays collapsed.
+    expect(screen.queryByText("ORD-000002")).not.toBeInTheDocument();
   });
 
   it("lists quarantined rows from this run and can resolve them", async () => {

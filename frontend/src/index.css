@@ -349,6 +349,30 @@ button.secondary {
   background: var(--surface-2);
 }
 
+.audit-group {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+}
+
+.audit-group:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.audit-group-header {
+  padding: 8px 10px;
+  margin: -8px -10px 8px;
+  border-radius: 6px;
+}
+
+.audit-group-rows {
+  margin-top: 12px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+}
+
 .chip-list {
   display: flex;
   flex-wrap: wrap;
