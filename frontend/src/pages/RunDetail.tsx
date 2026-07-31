@@ -103,10 +103,22 @@ export default function RunDetail() {
           {run.finished_at && ` · finished ${new Date(run.finished_at).toLocaleString()}`}
         </div>
         <div className="stat-grid">
-          <StatTile label="Rows" value={String(run.row_count)} />
-          <StatTile label="Clean first pass" value={String(run.clean_first_pass)} />
-          <StatTile label="Healed" value={String(run.healed)} />
-          <StatTile label="Quarantined" value={String(run.quarantined)} />
+          <StatTile label="Rows" value={String(run.row_count)} tooltip="Total rows in this run." />
+          <StatTile
+            label="Clean first pass"
+            value={String(run.clean_first_pass)}
+            tooltip="Rows that passed validation with no repair needed."
+          />
+          <StatTile
+            label="Healed"
+            value={String(run.healed)}
+            tooltip="Rows that failed validation but were automatically repaired."
+          />
+          <StatTile
+            label="Quarantined"
+            value={String(run.quarantined)}
+            tooltip="Rows that failed validation and couldn't be safely repaired."
+          />
         </div>
         {run.avg_time_to_heal_ms !== null && (
           <div className="muted" style={{ marginTop: 12 }}>

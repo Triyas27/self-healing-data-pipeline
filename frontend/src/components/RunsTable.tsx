@@ -2,7 +2,7 @@ import { Fragment, useState, type KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import ChipList from "./ChipList";
 import type { RunSummary } from "../api/types";
-import { formatHealTime } from "../utils/labels";
+import { formatHealTime, summarizeRun } from "../utils/labels";
 
 interface RunsTableProps {
   runs: RunSummary[];
@@ -38,6 +38,7 @@ export default function RunsTable({ runs }: RunsTableProps) {
           <th>Healed</th>
           <th>Quarantined</th>
           <th>Status</th>
+          <th>What happened</th>
         </tr>
       </thead>
       <tbody>
@@ -60,10 +61,11 @@ export default function RunsTable({ runs }: RunsTableProps) {
               <td>
                 <span className={`badge ${run.status}`}>{run.status}</span>
               </td>
+              <td className="muted">{summarizeRun(run)}</td>
             </tr>
             {expandedId === run.id && (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={8}>
                   <div className="detail-panel">
                     <div className="detail-columns">
                       <div>

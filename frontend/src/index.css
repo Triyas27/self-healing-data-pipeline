@@ -87,6 +87,19 @@ a {
   font-weight: 600;
 }
 
+.info-icon {
+  display: inline-block;
+  margin-left: 4px;
+  cursor: help;
+  color: var(--text-muted);
+}
+
+.info-icon:hover,
+.info-icon:focus {
+  color: var(--accent);
+  outline: none;
+}
+
 .panel {
   background: var(--surface);
   border: 1px solid var(--border);

@@ -42,10 +42,26 @@ export default function Dashboard() {
   return (
     <div>
       <div className="stat-grid">
-        <StatTile label="Rows processed" value={loading ? "..." : String(stats?.total_rows_processed ?? 0)} />
-        <StatTile label="Overall heal rate" value={loading ? "..." : pct(stats?.overall_heal_rate ?? 0)} />
-        <StatTile label="Auto-heal rate" value={loading ? "..." : pct(stats?.auto_heal_rate ?? 0)} />
-        <StatTile label="Quarantined" value={loading ? "..." : String(stats?.total_quarantined ?? 0)} />
+        <StatTile
+          label="Rows processed"
+          value={loading ? "..." : String(stats?.total_rows_processed ?? 0)}
+          tooltip="Total rows across every completed run: clean, healed, and quarantined combined."
+        />
+        <StatTile
+          label="Overall heal rate"
+          value={loading ? "..." : pct(stats?.overall_heal_rate ?? 0)}
+          tooltip="Share of all processed rows that ended up clean, either on first pass or after a repair."
+        />
+        <StatTile
+          label="Auto-heal rate"
+          value={loading ? "..." : pct(stats?.auto_heal_rate ?? 0)}
+          tooltip="Of the rows that needed a repair (healed or quarantined), the share that were actually fixed automatically."
+        />
+        <StatTile
+          label="Quarantined"
+          value={loading ? "..." : String(stats?.total_quarantined ?? 0)}
+          tooltip="Rows that couldn't be safely auto-repaired and are waiting for human review."
+        />
       </div>
 
       <div className="panel">
