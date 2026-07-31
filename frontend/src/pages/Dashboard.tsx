@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import ErrorBreakdownChart from "../components/ErrorBreakdownChart";
 import HealRateChart from "../components/HealRateChart";
 import Pager from "../components/Pager";
+import PipelineFlow from "../components/PipelineFlow";
 import RunsTable from "../components/RunsTable";
 import StatTile from "../components/StatTile";
 import TriggerRunForm from "../components/TriggerRunForm";
@@ -41,6 +42,11 @@ export default function Dashboard() {
 
   return (
     <div>
+      <div className="panel">
+        <h2>How this works</h2>
+        <PipelineFlow />
+      </div>
+
       <div className="stat-grid">
         <StatTile
           label="Rows processed"
