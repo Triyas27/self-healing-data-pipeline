@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -6,9 +7,12 @@ from sqlalchemy import func, select
 
 from app.api.routes import health, quarantine, runs, stats
 from app.config import settings
+from app.core.demo_seed import seed_demo_data
 from app.db.session import AsyncSessionLocal, init_db
 from app.models import CustomerReference
 from app.synthetic.generator import known_customer_ids
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -20,6 +24,11 @@ async def lifespan(app: FastAPI):
             for cid in known_customer_ids():
                 db.add(CustomerReference(customer_id=cid))
             await db.commit()
+
+        if settings.auto_seed_demo_data:
+            result = await seed_demo_data(db)
+            if result:
+                logger.info("Seeded %d demo run(s) on startup since the database had none.", len(result.runs))
     yield
 
 

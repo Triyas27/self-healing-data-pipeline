@@ -25,6 +25,13 @@ class Settings(BaseSettings):
 
     cors_allowed_origins: str = "http://localhost:5173"
 
+    # Seeds a curated set of demo runs on startup if the database has none.
+    # Matters most on hosts with an ephemeral disk (e.g. Render's free tier),
+    # where the database resets on every restart -- without this, the live
+    # demo goes back to an empty dashboard after every deploy or idle
+    # spin-down, and someone has to remember to reseed it by hand.
+    auto_seed_demo_data: bool = True
+
     @property
     def cors_allowed_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]

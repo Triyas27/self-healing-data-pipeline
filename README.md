@@ -87,7 +87,7 @@ docker-compose exec backend python -m scripts.seed_demo
 4. On the **frontend** service, set `VITE_API_BASE_URL` to the backend's URL, then trigger a manual redeploy. Vite bakes this in at build time, so saving the env var alone doesn't apply it.
 5. Optionally set `GROQ_API_KEY` on the backend for real LLM diagnosis. Without it, everything still works via the heuristic fallback.
 
-Two things about the free tier worth knowing: the backend spins down after 15 minutes of inactivity, so the first request after a while takes a few extra seconds to wake it up, and the SQLite database resets on every redeploy since the free plan has no persistent disk. Re-seed with `python -m scripts.seed_demo` (via Render's shell, on the backend service) any time the dashboard looks empty after a redeploy.
+Two things about the free tier worth knowing: the backend spins down after 15 minutes of inactivity, so the first request after a while takes a few extra seconds to wake it up, and the SQLite database resets on every restart (including that spin-down/wake-up cycle, not just a redeploy) since the free plan has no persistent disk. The backend re-seeds itself automatically on startup whenever it finds an empty database, so this is self-correcting rather than something to remember to do by hand. Set `AUTO_SEED_DEMO_DATA=false` on the backend service to turn that off.
 
 ## License
 
