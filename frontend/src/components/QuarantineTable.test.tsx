@@ -31,6 +31,31 @@ function renderTable(rows: QuarantineRow[] = [ROW]) {
   return { onResolve };
 }
 
+describe("QuarantineTable", () => {
+  it("humanizes the error type and explains what Resolve does", () => {
+    renderTable();
+
+    expect(screen.getByText("Invalid foreign key")).toBeInTheDocument();
+    expect(screen.queryByText("invalid_foreign_key")).not.toBeInTheDocument();
+
+    const resolveButton = screen.getByRole("button", { name: "Resolve" });
+    expect(resolveButton).toHaveAttribute(
+      "title",
+      "Marks this row as reviewed by a human. Doesn't change the data or re-run the pipeline."
+    );
+  });
+
+  it("humanizes the transform in the expanded attempt history, or shows 'No fix'", async () => {
+    const user = userEvent.setup();
+    renderTable();
+    const row = screen.getByRole("button", { name: /48/ });
+
+    await user.click(row);
+
+    expect(screen.getByText("No fix")).toBeInTheDocument();
+  });
+});
+
 describe("QuarantineTable keyboard accessibility", () => {
   it("is focusable and exposes button semantics", () => {
     renderTable();

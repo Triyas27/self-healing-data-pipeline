@@ -28,6 +28,21 @@ function renderPage() {
   );
 }
 
+describe("Quarantine page", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(client.listQuarantine).mockResolvedValue({ items: [ROW], total: 1 });
+  });
+
+  it("explains what resolving a row actually does", async () => {
+    renderPage();
+
+    expect(
+      await screen.findByText(/Resolving one just marks it as reviewed by a human/)
+    ).toBeInTheDocument();
+  });
+});
+
 describe("Quarantine resolve feedback", () => {
   beforeEach(() => {
     vi.clearAllMocks();

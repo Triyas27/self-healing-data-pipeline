@@ -50,6 +50,10 @@ export default function Quarantine() {
     <div>
       <div className="panel">
         <h2>Quarantined rows</h2>
+        <p className="muted" style={{ marginTop: -8, marginBottom: 16 }}>
+          Rows the pipeline couldn't safely auto-repair. Resolving one just marks it as reviewed by a
+          human; it's a bookkeeping flag and doesn't change the underlying data or re-run the pipeline.
+        </p>
         <div className="filters">
           {(["unresolved", "resolved", "all"] as Filter[]).map((f) => (
             <button key={f} className={filter === f ? "active" : ""} onClick={() => handleFilterChange(f)}>

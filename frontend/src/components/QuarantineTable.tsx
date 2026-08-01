@@ -1,5 +1,6 @@
 import { Fragment, useState, type KeyboardEvent } from "react";
 import type { QuarantineRow } from "../api/types";
+import { humanizeLabel } from "../utils/labels";
 
 interface QuarantineTableProps {
   rows: QuarantineRow[];
@@ -52,7 +53,7 @@ export default function QuarantineTable({ rows, onResolve }: QuarantineTableProp
             >
               <td>#{row.id}</td>
               <td>#{row.run_id}</td>
-              <td>{row.error_type}</td>
+              <td>{humanizeLabel(row.error_type)}</td>
               <td>{row.attempt_count}</td>
               <td>
                 <span className={`badge resolved-${row.resolved}`}>{row.resolved ? "resolved" : "unresolved"}</span>
@@ -61,6 +62,7 @@ export default function QuarantineTable({ rows, onResolve }: QuarantineTableProp
                 {!row.resolved && (
                   <button
                     className="secondary"
+                    title="Marks this row as reviewed by a human. Doesn't change the data or re-run the pipeline."
                     onClick={(e) => {
                       e.stopPropagation();
                       onResolve(row.id);
@@ -83,7 +85,7 @@ export default function QuarantineTable({ rows, onResolve }: QuarantineTableProp
                           <div>
                             attempt {i + 1} &middot; <span className="muted">{attempt.source}</span> &middot;{" "}
                             <span className={`transform ${attempt.transform ? "applied" : "no-fix"}`}>
-                              {attempt.transform ?? "no_fix"}
+                              {attempt.transform ? humanizeLabel(attempt.transform) : "No fix"}
                             </span>{" "}
                             <span className="muted">(confidence {attempt.confidence.toFixed(2)})</span>
                           </div>
