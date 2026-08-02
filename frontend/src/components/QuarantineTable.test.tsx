@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import QuarantineTable from "./QuarantineTable";
 import type { QuarantineRow } from "../api/types";
@@ -27,7 +28,11 @@ const ROW: QuarantineRow = {
 
 function renderTable(rows: QuarantineRow[] = [ROW]) {
   const onResolve = vi.fn();
-  render(<QuarantineTable rows={rows} onResolve={onResolve} />);
+  render(
+    <MemoryRouter>
+      <QuarantineTable rows={rows} onResolve={onResolve} />
+    </MemoryRouter>
+  );
   return { onResolve };
 }
 
@@ -43,6 +48,17 @@ describe("QuarantineTable", () => {
       "title",
       "Marks this row as reviewed by a human. Doesn't change the data or re-run the pipeline."
     );
+  });
+
+  it("links the run column to that run's detail page without expanding the row", async () => {
+    const user = userEvent.setup();
+    renderTable();
+
+    const runLink = screen.getByRole("link", { name: "#4" });
+    expect(runLink).toHaveAttribute("href", "/runs/4");
+
+    await user.click(runLink);
+    expect(screen.getByRole("button", { name: /48/ })).toHaveAttribute("aria-expanded", "false");
   });
 
   it("humanizes the transform in the expanded attempt history, or shows 'No fix'", async () => {
@@ -64,7 +80,11 @@ describe("QuarantineTable grouped by error type", () => {
 
   function renderGrouped(rows: QuarantineRow[] = GROUPED_ROWS) {
     const onResolve = vi.fn();
-    render(<QuarantineTable rows={rows} onResolve={onResolve} groupByErrorType />);
+    render(
+      <MemoryRouter>
+        <QuarantineTable rows={rows} onResolve={onResolve} groupByErrorType />
+      </MemoryRouter>
+    );
     return { onResolve };
   }
 

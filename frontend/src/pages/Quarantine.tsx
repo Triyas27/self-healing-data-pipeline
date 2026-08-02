@@ -14,6 +14,7 @@ const FETCH_LIMIT = 500;
 export default function Quarantine() {
   const [rows, setRows] = useState<QuarantineRow[]>([]);
   const [total, setTotal] = useState(0);
+  const [counts, setCounts] = useState<Record<Filter, number>>({ unresolved: 0, resolved: 0, all: 0 });
   const [filter, setFilter] = useState<Filter>("unresolved");
   const [loading, setLoading] = useState(true);
   const { showSuccess, showError } = useToast();
@@ -21,9 +22,17 @@ export default function Quarantine() {
   async function refresh(currentFilter: Filter) {
     setLoading(true);
     const resolved = currentFilter === "all" ? undefined : currentFilter === "resolved";
-    const data = await listQuarantine({ resolved, limit: FETCH_LIMIT });
+    // Counts for all three tabs are fetched alongside the current page so the
+    // tab labels always reflect reality, not just whichever filter is active.
+    const [data, unresolvedCount, resolvedCount, allCount] = await Promise.all([
+      listQuarantine({ resolved, limit: FETCH_LIMIT }),
+      listQuarantine({ resolved: false, limit: 1 }),
+      listQuarantine({ resolved: true, limit: 1 }),
+      listQuarantine({ limit: 1 }),
+    ]);
     setRows(data.items);
     setTotal(data.total);
+    setCounts({ unresolved: unresolvedCount.total, resolved: resolvedCount.total, all: allCount.total });
     setLoading(false);
   }
 
@@ -57,7 +66,7 @@ export default function Quarantine() {
         <div className="filters">
           {(["unresolved", "resolved", "all"] as Filter[]).map((f) => (
             <button key={f} className={filter === f ? "active" : ""} onClick={() => handleFilterChange(f)}>
-              {f}
+              {f} ({counts[f]})
             </button>
           ))}
         </div>

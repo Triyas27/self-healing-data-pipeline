@@ -1,4 +1,5 @@
 import { Fragment, useState, type KeyboardEvent } from "react";
+import { Link } from "react-router-dom";
 import type { QuarantineRow } from "../api/types";
 import { humanizeLabel } from "../utils/labels";
 
@@ -92,7 +93,11 @@ export default function QuarantineTable({ rows, onResolve, groupByErrorType }: Q
                 onKeyDown={(e) => handleRowKeyDown(e, row.id)}
               >
                 <td>#{row.id}</td>
-                <td>#{row.run_id}</td>
+                <td>
+                  <Link to={`/runs/${row.run_id}`} className="run-link" onClick={(e) => e.stopPropagation()}>
+                    #{row.run_id}
+                  </Link>
+                </td>
                 <td>{humanizeLabel(row.error_type)}</td>
                 <td>{row.attempt_count}</td>
                 <td>

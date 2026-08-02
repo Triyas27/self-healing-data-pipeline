@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import Quarantine from "./Quarantine";
 import { ToastProvider } from "../components/Toast";
@@ -22,9 +23,11 @@ const ROW: QuarantineRow = {
 
 function renderPage() {
   return render(
-    <ToastProvider>
-      <Quarantine />
-    </ToastProvider>
+    <MemoryRouter>
+      <ToastProvider>
+        <Quarantine />
+      </ToastProvider>
+    </MemoryRouter>
   );
 }
 
@@ -59,6 +62,19 @@ describe("Quarantine page", () => {
 
     expect(await screen.findByText("Showing 1 of 823 quarantined rows.")).toBeInTheDocument();
   });
+
+  it("shows a count on each filter tab regardless of which one is active", async () => {
+    vi.mocked(client.listQuarantine).mockImplementation(async (filters = {}) => {
+      if (filters.resolved === false) return { items: [ROW], total: 5 };
+      if (filters.resolved === true) return { items: [], total: 2 };
+      return { items: [ROW], total: 7 };
+    });
+    renderPage();
+
+    expect(await screen.findByRole("button", { name: "unresolved (5)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "resolved (2)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "all (7)" })).toBeInTheDocument();
+  });
 });
 
 describe("Quarantine resolve feedback", () => {
@@ -91,6 +107,8 @@ describe("Quarantine resolve feedback", () => {
     await user.click(resolveButton);
 
     expect(await screen.findByText("POST /quarantine/48/resolve failed: 500")).toBeInTheDocument();
-    await waitFor(() => expect(client.listQuarantine).toHaveBeenCalledTimes(1));
+    // One refresh() on mount issues 4 calls (the page plus 3 tab counts); a
+    // failed resolve shouldn't trigger a second refresh.
+    await waitFor(() => expect(client.listQuarantine).toHaveBeenCalledTimes(4));
   });
 });

@@ -424,6 +424,15 @@ button.secondary {
   text-decoration: underline;
 }
 
+.run-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.run-link:hover {
+  text-decoration: underline;
+}
+
 .detail-columns h4 {
   margin: 0 0 8px;
   font-size: 11px;
