@@ -56,6 +56,43 @@ describe("QuarantineTable", () => {
   });
 });
 
+describe("QuarantineTable grouped by error type", () => {
+  const ROW_A1: QuarantineRow = { ...ROW, id: 10, run_id: 1, error_type: "invalid_amount", resolved: false };
+  const ROW_A2: QuarantineRow = { ...ROW, id: 11, run_id: 2, error_type: "invalid_amount", resolved: false };
+  const ROW_B1: QuarantineRow = { ...ROW, id: 12, run_id: 3, error_type: "duplicate_order_id", resolved: true };
+  const GROUPED_ROWS = [ROW_A1, ROW_A2, ROW_B1];
+
+  function renderGrouped(rows: QuarantineRow[] = GROUPED_ROWS) {
+    const onResolve = vi.fn();
+    render(<QuarantineTable rows={rows} onResolve={onResolve} groupByErrorType />);
+    return { onResolve };
+  }
+
+  it("collapses same-error-type rows into one header instead of listing every row", () => {
+    renderGrouped();
+
+    expect(screen.getByRole("button", { name: /Invalid amount.*2 rows.*2 unresolved/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Duplicate order ID.*1 row\b/ })).toBeInTheDocument();
+    // A fully-resolved group shouldn't claim any rows are unresolved.
+    expect(screen.queryByText(/Duplicate order ID.*unresolved/)).not.toBeInTheDocument();
+
+    expect(screen.queryByText("#10")).not.toBeInTheDocument();
+    expect(screen.queryByText("#11")).not.toBeInTheDocument();
+    expect(screen.queryByText("#12")).not.toBeInTheDocument();
+  });
+
+  it("expands one group to reveal its rows without expanding the others", async () => {
+    const user = userEvent.setup();
+    renderGrouped();
+
+    await user.click(screen.getByRole("button", { name: /Invalid amount/ }));
+
+    expect(screen.getByText("#10")).toBeInTheDocument();
+    expect(screen.getByText("#11")).toBeInTheDocument();
+    expect(screen.queryByText("#12")).not.toBeInTheDocument();
+  });
+});
+
 describe("QuarantineTable keyboard accessibility", () => {
   it("is focusable and exposes button semantics", () => {
     renderTable();

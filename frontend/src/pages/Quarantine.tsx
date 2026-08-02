@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import Pager from "../components/Pager";
 import QuarantineTable from "../components/QuarantineTable";
 import { useToast } from "../components/Toast";
 import { listQuarantine, resolveQuarantineRow } from "../api/client";
@@ -7,40 +6,41 @@ import type { QuarantineRow } from "../api/types";
 
 type Filter = "all" | "unresolved" | "resolved";
 
-const PAGE_SIZE = 15;
+// Grouping by error type needs the full filtered set in hand rather than one
+// page at a time, so this fetches up to the backend's max page size instead
+// of paginating. 500 comfortably covers this project's demo data volume.
+const FETCH_LIMIT = 500;
 
 export default function Quarantine() {
   const [rows, setRows] = useState<QuarantineRow[]>([]);
   const [total, setTotal] = useState(0);
   const [filter, setFilter] = useState<Filter>("unresolved");
-  const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const { showSuccess, showError } = useToast();
 
-  async function refresh(currentFilter: Filter, currentOffset: number) {
+  async function refresh(currentFilter: Filter) {
     setLoading(true);
     const resolved = currentFilter === "all" ? undefined : currentFilter === "resolved";
-    const data = await listQuarantine({ resolved, limit: PAGE_SIZE, offset: currentOffset });
+    const data = await listQuarantine({ resolved, limit: FETCH_LIMIT });
     setRows(data.items);
     setTotal(data.total);
     setLoading(false);
   }
 
   useEffect(() => {
-    refresh(filter, offset);
+    refresh(filter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, offset]);
+  }, [filter]);
 
   function handleFilterChange(f: Filter) {
     setFilter(f);
-    setOffset(0);
   }
 
   async function handleResolve(id: number) {
     try {
       await resolveQuarantineRow(id);
       showSuccess(`Row #${id} resolved.`);
-      refresh(filter, offset);
+      refresh(filter);
     } catch (err) {
       showError(err instanceof Error ? err.message : `Failed to resolve row #${id}.`);
     }
@@ -61,8 +61,16 @@ export default function Quarantine() {
             </button>
           ))}
         </div>
-        {loading ? <div className="empty-state">Loading...</div> : <QuarantineTable rows={rows} onResolve={handleResolve} />}
-        <Pager total={total} limit={PAGE_SIZE} offset={offset} onOffsetChange={setOffset} />
+        {loading ? (
+          <div className="empty-state">Loading...</div>
+        ) : (
+          <QuarantineTable rows={rows} onResolve={handleResolve} groupByErrorType />
+        )}
+        {!loading && total > rows.length && (
+          <div className="muted" style={{ marginTop: 12 }}>
+            Showing {rows.length} of {total} quarantined rows.
+          </div>
+        )}
       </div>
     </div>
   );

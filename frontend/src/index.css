@@ -349,28 +349,36 @@ button.secondary {
   background: var(--surface-2);
 }
 
-.audit-group {
+.audit-group,
+.quarantine-group {
   border-bottom: 1px solid var(--border);
   padding-bottom: 16px;
   margin-bottom: 16px;
 }
 
-.audit-group:last-child {
+.audit-group:last-child,
+.quarantine-group:last-child {
   border-bottom: none;
   margin-bottom: 0;
   padding-bottom: 0;
 }
 
-.audit-group-header {
+.audit-group-header,
+.quarantine-group-header {
   padding: 8px 10px;
   margin: -8px -10px 8px;
   border-radius: 6px;
 }
 
-.audit-group-rows {
+.audit-group-rows,
+.quarantine-group-rows {
   margin-top: 12px;
   padding-left: 12px;
   border-left: 2px solid var(--border);
+}
+
+.quarantine-group-rows table {
+  margin-top: 4px;
 }
 
 .chip-list {
