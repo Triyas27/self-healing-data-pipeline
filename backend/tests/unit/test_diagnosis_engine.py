@@ -54,3 +54,35 @@ async def test_uses_llm_result_when_it_succeeds(monkeypatch):
     monkeypatch.setattr(engine_module, "diagnose_llm", _fake_llm)
     diagnosis = await diagnose(_row_result(), use_llm=True)
     assert diagnosis.source == "llm"
+
+
+def _deterministic_row_result(error_type: str) -> RowValidationResult:
+    row = {
+        "order_id": "ORD-000002",
+        "customer_id": "CUST-9999",
+        "order_date": "2026-01-01",
+        "amount": "49.99",
+        "currency": "USD",
+        "status": "pending",
+    }
+    return RowValidationResult(row_index=0, raw_row=row, valid=False, error_type=error_type, errors=[])
+
+
+async def test_skips_llm_for_duplicate_order_id_even_when_requested(monkeypatch):
+    async def _fail_if_called(result):
+        raise AssertionError("diagnose_llm should not be called for a deterministic error type")
+
+    monkeypatch.setattr(engine_module, "diagnose_llm", _fail_if_called)
+    diagnosis = await diagnose(_deterministic_row_result("duplicate_order_id"), use_llm=True)
+    assert diagnosis.source == "heuristic"
+    assert diagnosis.transform is None
+
+
+async def test_skips_llm_for_invalid_foreign_key_even_when_requested(monkeypatch):
+    async def _fail_if_called(result):
+        raise AssertionError("diagnose_llm should not be called for a deterministic error type")
+
+    monkeypatch.setattr(engine_module, "diagnose_llm", _fail_if_called)
+    diagnosis = await diagnose(_deterministic_row_result("invalid_foreign_key"), use_llm=True)
+    assert diagnosis.source == "heuristic"
+    assert diagnosis.transform is None
