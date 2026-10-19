@@ -22,6 +22,8 @@ Order IDs are always numbered from 1 within a batch, so triggering several runs 
 
 Reads a CSV from an upload, a file path, or an already-generated batch. Normalizes column names and strips whitespace, then validates format/range/enums and cross-references customer IDs against the known set. An unexpected column in the CSV rejects the whole batch (schema drift); a bad value in an otherwise-fine row is isolated so it doesn't take the rest of the batch down with it.
 
+Duplicate `order_id`s are split into two cases (`backend/app/core/pipeline/duplicates.py`). If every field matches the stored order, the row is just a resubmission: it's counted as healed with a `deduplicate` fix and nothing is inserted twice. If any field differs, it's a genuine conflict and goes to quarantine for a human to decide which version is right. `deduplicate` is recorded by the orchestrator, not a registered transform, so neither the LLM nor the heuristic can ever propose it.
+
 ## Diagnosis
 `backend/app/core/pipeline/diagnosis/base.py` (shared types)
 `llm_diagnoser.py` (Groq), `heuristic_diagnoser.py` (deterministic fallback)

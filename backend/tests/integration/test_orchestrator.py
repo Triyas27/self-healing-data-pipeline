@@ -121,7 +121,7 @@ async def test_all_clean_batch_has_zero_healed_and_quarantined(db):
     assert run.avg_time_to_heal_ms is None
 
 
-async def test_reuploading_the_same_batch_quarantines_the_duplicates(db):
+async def test_reuploading_the_same_batch_deduplicates_instead_of_quarantining(db):
     clean_rows = generate_batch(row_count=5, failure_rate=0.0, seed=3).rows
     csv_text = to_csv_string(clean_rows)
 
@@ -131,8 +131,46 @@ async def test_reuploading_the_same_batch_quarantines_the_duplicates(db):
     second_run = await run_pipeline(db, io.StringIO(csv_text), use_llm=False)
     assert second_run.status == "completed"
     assert second_run.clean_first_pass == 0
-    assert second_run.quarantined == 5
+    assert second_run.healed == 5
+    assert second_run.quarantined == 0
     assert second_run.error_types == {"duplicate_order_id": 5}
+    assert second_run.fixes_applied == {"deduplicate": 5}
+
+    # Nothing was inserted twice, and no quarantine row was created.
+    assert await _count(db, Order) == 5
+    assert await _count(db, QuarantineRow) == 0
+
+    audit = (await db.execute(select(AuditEntry).where(AuditEntry.run_id == second_run.id))).scalars().all()
+    assert len(audit) == 5
+    assert {a.transform_chosen for a in audit} == {"deduplicate"}
+    assert {a.outcome for a in audit} == {"healed"}
+
+
+async def test_duplicate_order_id_with_different_content_is_still_quarantined(db):
+    rows = generate_batch(row_count=5, failure_rate=0.0, seed=3).rows
+    await run_pipeline(db, io.StringIO(to_csv_string(rows)), use_llm=False)
+
+    changed = [dict(r) for r in rows]
+    changed[0]["amount"] = "9999.00"
+    second_run = await run_pipeline(db, io.StringIO(to_csv_string(changed)), use_llm=False)
+
+    assert second_run.healed == 4
+    assert second_run.quarantined == 1
+    assert second_run.fixes_applied == {"deduplicate": 4}
+    assert await _count(db, Order) == 5
+    quarantined = (await db.execute(select(QuarantineRow))).scalars().all()
+    assert [q.original_data["order_id"] for q in quarantined] == [changed[0]["order_id"]]
+
+
+async def test_identical_duplicate_within_one_batch_is_deduplicated(db):
+    rows = generate_batch(row_count=3, failure_rate=0.0, seed=3).rows
+    run = await run_pipeline(db, io.StringIO(to_csv_string(rows + [dict(rows[0])])), use_llm=False)
+
+    assert run.row_count == 4
+    assert run.clean_first_pass == 3
+    assert run.healed == 1
+    assert run.quarantined == 0
+    assert await _count(db, Order) == 3
 
 
 async def test_row_count_over_cap_marks_run_failed(db, monkeypatch):

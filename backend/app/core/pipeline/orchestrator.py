@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.alerting import AlertPayload, send_quarantine_alert
 from app.core.pipeline.diagnosis.base import Diagnosis
+from app.core.pipeline.duplicates import is_exact_duplicate, load_stored_orders
 from app.core.pipeline.ingestion import CsvSource, read_csv_rows
 from app.core.pipeline.quarantine import persist_quarantine_row
 from app.core.pipeline.repair.repair import repair_row
@@ -20,6 +21,11 @@ from app.db.base import utcnow
 from app.models import AuditEntry, Order, Run
 
 logger = logging.getLogger(__name__)
+
+# Label recorded in fixes_applied and the audit trail when a row turns out to be
+# an exact resubmission. Deliberately not a TransformID: it repairs nothing, so
+# it must never be something the LLM or heuristic can propose for a row.
+DEDUPLICATE_LABEL = "deduplicate"
 
 
 def _persist_audit_entry(db: AsyncSession, run_id: int, row_identifier: str, diagnosis: Diagnosis, outcome: str) -> None:
@@ -35,6 +41,30 @@ def _persist_audit_entry(db: AsyncSession, run_id: int, row_identifier: str, dia
             outcome=outcome,
         )
     )
+
+
+async def _split_exact_duplicates(db: AsyncSession, batch_result):
+    """Separates rows that are plain resubmissions of an order already stored
+    (every field identical) from everything else that failed validation. A
+    duplicate order_id with differing content stays in the normal path, where it
+    is quarantined for a human to decide which version is right."""
+    duplicates = [r for r in batch_result.invalid_rows if r.error_type == "duplicate_order_id"]
+    if not duplicates:
+        return [], batch_result.invalid_rows
+
+    stored = await load_stored_orders(db, {r.order.order_id for r in duplicates})
+    in_batch = {r.order.order_id: r.order for r in batch_result.valid_rows}
+
+    exact, remaining = [], []
+    for result in batch_result.invalid_rows:
+        if result.error_type == "duplicate_order_id":
+            order_id = result.order.order_id
+            candidates = [c for c in (in_batch.get(order_id), stored.get(order_id)) if c is not None]
+            if any(is_exact_duplicate(result.order, c) for c in candidates):
+                exact.append(result)
+                continue
+        remaining.append(result)
+    return exact, remaining
 
 
 async def _diagnose_and_repair(
@@ -95,6 +125,8 @@ async def run_pipeline(db: AsyncSession, source: CsvSource, use_llm: bool | None
         logger.error("Run %s rejected: schema drift in columns %s", run.id, sorted(exc.unexpected_columns))
         return run
 
+    exact_duplicates, rows_to_repair = await _split_exact_duplicates(db, batch_result)
+
     quarantined_count = 0
     error_type_counts: dict[str, int] = {}
 
@@ -116,11 +148,11 @@ async def run_pipeline(db: AsyncSession, source: CsvSource, use_llm: bool | None
         repair_results = await asyncio.gather(
             *[
                 _diagnose_and_repair(invalid_result, known_ids, use_llm, semaphore)
-                for invalid_result in batch_result.invalid_rows
+                for invalid_result in rows_to_repair
             ]
         )
 
-        for invalid_result, (outcome, elapsed_ms) in zip(batch_result.invalid_rows, repair_results):
+        for invalid_result, (outcome, elapsed_ms) in zip(rows_to_repair, repair_results):
             error_type_counts[invalid_result.error_type] = error_type_counts.get(invalid_result.error_type, 0) + 1
             row_identifier = invalid_result.raw_row.get("order_id") or f"row-{invalid_result.row_index}"
 
@@ -144,6 +176,23 @@ async def run_pipeline(db: AsyncSession, source: CsvSource, use_llm: bool | None
             else:
                 quarantined_count += 1
                 await persist_quarantine_row(db, run.id, invalid_result, outcome)
+
+        for duplicate in exact_duplicates:
+            error_type_counts[duplicate.error_type] = error_type_counts.get(duplicate.error_type, 0) + 1
+            healed_count += 1
+            fixes_applied_counts[DEDUPLICATE_LABEL] = fixes_applied_counts.get(DEDUPLICATE_LABEL, 0) + 1
+            db.add(
+                AuditEntry(
+                    run_id=run.id,
+                    row_identifier=duplicate.order.order_id,
+                    hypothesis="order_id already exists with identical content",
+                    transform_chosen=DEDUPLICATE_LABEL,
+                    confidence=1.0,
+                    reasoning="Exact resubmission of an order already in the clean data store; nothing new to insert.",
+                    diagnosis_source="heuristic",
+                    outcome="healed",
+                )
+            )
 
         run.clean_first_pass = len(batch_result.valid_rows)
         run.healed = healed_count

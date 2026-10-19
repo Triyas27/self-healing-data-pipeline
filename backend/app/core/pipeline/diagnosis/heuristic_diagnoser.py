@@ -19,9 +19,9 @@ def diagnose_heuristic(result: RowValidationResult) -> Diagnosis:
 
     if result.error_type == "duplicate_order_id":
         return _no_fix(
-            "order_id already exists in the clean data store from a previous run",
-            "Duplicate orders aren't auto-resolved; a human should decide whether "
-            "this is a resubmission or a genuine conflict.",
+            "order_id already exists in the clean data store with different content",
+            "Exact resubmissions are deduplicated before diagnosis, so this is a genuine "
+            "conflict; a human should decide which version is correct.",
         )
 
     # A row can fail on more than one field at once. Check every current error
